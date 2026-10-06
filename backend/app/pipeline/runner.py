@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -100,7 +101,6 @@ async def execute_run(
         section_summaries = []
 
         for sec in active_sections:
-            # Enforce cost budget if configured
             if settings.MAX_COST_PER_RUN and total_cost >= settings.MAX_COST_PER_RUN:
                 logger.warning(f"Run cost (${total_cost:.4f}) reached MAX_COST_PER_RUN limit (${settings.MAX_COST_PER_RUN}). Halting further LLM section analysis.")
                 break
@@ -143,19 +143,18 @@ async def execute_run(
         db.commit()
 
         # 6. TOP CANDIDATES -> VERIFY_INDIA, CRITIC, SCORING
-        # Group findings by entity
         entity_findings_map = {}
         for f_schema, ent, finding_row in all_findings:
             if ent.id not in entity_findings_map:
                 entity_findings_map[ent.id] = (ent, [])
             entity_findings_map[ent.id][1].append(f_schema)
 
-        # Select top candidates (up to 10 entities by appearance count & findings count)
+        # Select top 5 candidates to respect Groq rate limits
         candidate_entities = sorted(
             list(entity_findings_map.values()),
             key=lambda item: (item[0].appearance_count, len(item[1])),
             reverse=True
-        )[:10]
+        )[:5]
 
         for ent, f_schemas in candidate_entities:
             if settings.MAX_COST_PER_RUN and total_cost >= settings.MAX_COST_PER_RUN:
@@ -165,11 +164,13 @@ async def execute_run(
             india_res, ind_tokens, ind_cost = await run_verify_india(ent.canonical_name)
             total_tokens += ind_tokens
             total_cost += ind_cost
+            await asyncio.sleep(1.0)
 
             # Critic pass
             critic_res, cr_tokens, cr_cost = await run_critic(ent.canonical_name, f_schemas)
             total_tokens += cr_tokens
             total_cost += cr_cost
+            await asyncio.sleep(1.0)
 
             # Source count for confidence
             source_count = max([len(f.evidence) for f in f_schemas] + [1])
@@ -222,7 +223,6 @@ async def execute_run(
         run.estimated_cost = round(total_cost, 4)
         run.finished_at = datetime.utcnow()
 
-        # Determine if partial or completed
         failed_sources = [s for s in sources_checked if s["status"] == "failed"]
         if failed_sources and len(failed_sources) < len(sources_checked):
             run.status = "partial"
