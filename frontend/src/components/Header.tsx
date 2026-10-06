@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Bell, Pause, Play, Clock, X, Radio } from 'lucide-react';
+import { Bell, Pause, Play, Clock, X, Radio, BellRing } from 'lucide-react';
 import { NotificationItem } from '../types';
 
 export const Header: React.FC = () => {
   const queryClient = useQueryClient();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   // Fetch Scheduler Status safely
   const { data: schedulerStatus } = useQuery({
@@ -23,6 +26,41 @@ export const Header: React.FC = () => {
     refetchInterval: 10000,
     retry: false,
   });
+
+  // Trigger browser push notification when new high score item arrives
+  useEffect(() => {
+    if (
+      notificationPermission === 'granted' &&
+      notifications &&
+      notifications.length > 0
+    ) {
+      const latest = notifications[0];
+      const lastNotifiedId = localStorage.getItem('last_notified_id');
+      if (lastNotifiedId !== String(latest.id)) {
+        localStorage.setItem('last_notified_id', String(latest.id));
+        try {
+          new Notification(`Opportunity Alert (${latest.score}/100)`, {
+            body: latest.message.replace(/[*_]/g, ''),
+            icon: '/vite.svg',
+          });
+        } catch (e) {
+          console.log('Browser notification error:', e);
+        }
+      }
+    }
+  }, [notifications, notificationPermission]);
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification !== 'undefined') {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === 'granted') {
+        new Notification('Business Radar Notifications Enabled', {
+          body: 'You will receive alerts for high-score business opportunities on your device.',
+        });
+      }
+    }
+  };
 
   const pauseMutation = useMutation({
     mutationFn: apiClient.pauseScheduler,
@@ -60,11 +98,22 @@ export const Header: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Status Indicator */}
+      <div className="flex items-center gap-3">
+        {/* Browser Notification Permission Button */}
+        {notificationPermission !== 'granted' && (
+          <button
+            onClick={requestNotificationPermission}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#29253b] border border-[#3b3754] text-purple-200 text-xs font-medium hover:bg-[#322d48] transition-colors"
+          >
+            <BellRing className="w-3.5 h-3.5 text-purple-300" />
+            <span>Enable Push Notifications</span>
+          </button>
+        )}
+
+        {/* Collector Status Pill */}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf] text-xs">
           <Radio className="w-3.5 h-3.5 text-purple-400" />
-          <span>Collector Status: Active</span>
+          <span>Active</span>
         </div>
 
         {/* Notification Bell */}
