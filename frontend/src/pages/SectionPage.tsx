@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -22,6 +22,20 @@ export const SectionPage: React.FC = () => {
     label: sectionName.replace(/_/g, ' ').toUpperCase(),
   };
 
+  // Fetch active running runs on server to auto-attach if user reopens app
+  const { data: runningRuns } = useQuery({
+    queryKey: ['runningRunsCheck'],
+    queryFn: () => apiClient.getRuns(undefined, 'running'),
+    refetchInterval: 5000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (runningRuns && runningRuns.length > 0 && !activeRunId) {
+      setActiveRunId(runningRuns[0].id);
+    }
+  }, [runningRuns, activeRunId]);
+
   // Fetch Latest Section Findings safely
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['sectionLatest', sectionName],
@@ -33,6 +47,7 @@ export const SectionPage: React.FC = () => {
     try {
       const res = await apiClient.startRun([sectionName], topic);
       setActiveRunId(res.run_id);
+      queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
     } catch (err: any) {
       alert(err?.response?.data?.detail || 'Failed to trigger analysis run.');
     }
@@ -74,10 +89,15 @@ export const SectionPage: React.FC = () => {
 
           <button
             onClick={handleRunNow}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#29253b] hover:bg-[#322d48] text-purple-200 border border-[#3b3754] font-medium text-xs transition-colors"
+            disabled={!!activeRunId}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border font-medium text-xs transition-colors ${
+              activeRunId
+                ? 'bg-[#13111e] text-[#7e7b99] border-[#29253b] cursor-not-allowed'
+                : 'bg-[#29253b] hover:bg-[#322d48] text-purple-200 border-[#3b3754]'
+            }`}
           >
             <Play className="w-3.5 h-3.5 fill-current text-purple-300" />
-            <span>Run Analysis Now</span>
+            <span>{activeRunId ? 'Scan Running in Cloud...' : 'Run Analysis Now'}</span>
           </button>
         </div>
       </div>
@@ -133,6 +153,7 @@ export const SectionPage: React.FC = () => {
           onComplete={() => {
             refetch();
             queryClient.invalidateQueries({ queryKey: ['sectionLatest'] });
+            queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
           }}
           onClose={() => setActiveRunId(null)}
         />
