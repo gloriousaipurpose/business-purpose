@@ -1,7 +1,7 @@
 import logging
 import json
 import asyncio
-from typing import Type, TypeVar, Optional, Tuple
+from typing import Type, TypeVar, Optional, Tuple, List
 from pydantic import BaseModel
 from app.config import settings
 
@@ -15,22 +15,45 @@ OUTPUT_TOKEN_COST_PER_1K = 0.00079
 
 class LLMClient:
     def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
         self.model = settings.GROQ_MODEL or "openai/gpt-oss-120b"
-        self._client: Optional[object] = None
-        self._last_call_time: float = 0.0
+        self._keys: List[str] = []
+        self._clients: List[object] = []
+        self._current_key_idx: int = 0
+        self._init_keys()
 
-    def _get_client(self):
-        api_key = settings.GROQ_API_KEY or self.api_key
-        if not api_key:
-            raise ValueError("GROQ_API_KEY is not set in environment settings.")
-        if self._client is None:
+    def _init_keys(self):
+        """Initializes pool of Groq API keys from GROQ_API_KEYS or GROQ_API_KEY."""
+        raw_keys = settings.GROQ_API_KEYS or settings.GROQ_API_KEY or ""
+        keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+        self._keys = keys
+
+    def _get_current_client(self):
+        self._init_keys()
+        if not self._keys:
+            raise ValueError("No Groq API keys configured in environment settings (GROQ_API_KEY or GROQ_API_KEYS).")
+        
+        # Ensure client instances list matches keys list length
+        while len(self._clients) < len(self._keys):
+            self._clients.append(None)
+
+        idx = self._current_key_idx % len(self._keys)
+        if self._clients[idx] is None:
             try:
                 from groq import AsyncGroq
-                self._client = AsyncGroq(api_key=api_key)
+                key = self._keys[idx]
+                self._clients[idx] = AsyncGroq(api_key=key)
             except ImportError:
                 raise RuntimeError("The 'groq' package is not installed. Please run: pip install groq")
-        return self._client
+        
+        return self._clients[idx], self._keys[idx], idx
+
+    def _rotate_key(self):
+        """Rotates to the next Groq API key in the pool on rate limit."""
+        if len(self._keys) > 1:
+            prev_idx = self._current_key_idx % len(self._keys)
+            self._current_key_idx = (self._current_key_idx + 1) % len(self._keys)
+            new_idx = self._current_key_idx % len(self._keys)
+            logger.info(f"Rotated Groq API Key on 429 Rate Limit: Switched key #{prev_idx + 1} ➔ #{new_idx + 1} of {len(self._keys)}")
 
     async def generate_json(
         self,
@@ -41,11 +64,10 @@ class LLMClient:
     ) -> Tuple[T, int, float]:
         """
         Sends prompt to Groq API with JSON mode enabled.
-        Paces requests with a small delay to prevent 429 Rate Limits on Groq free tier.
+        Paces requests and automatically rotates API keys on 429 Rate Limits.
         Validates against Pydantic schema `response_schema`.
         Returns tuple: (validated_pydantic_object, tokens_used, estimated_cost)
         """
-        client = self._get_client()
         attempts = 0
         last_error = None
 
@@ -58,11 +80,16 @@ class LLMClient:
             {"role": "user", "content": prompt}
         ]
 
-        while attempts <= max_retries:
+        # Retry loop across attempts and key rotations
+        total_attempts_allowed = max_retries * max(1, len(self._keys))
+
+        while attempts < total_attempts_allowed:
             attempts += 1
+            client, current_key, key_idx = self._get_current_client()
+
             try:
-                # Pacing delay between calls to respect Groq RPM rate limit (max ~30 RPM)
-                await asyncio.sleep(2.0)
+                # Small 1-second pacer delay
+                await asyncio.sleep(1.0)
 
                 response = await client.chat.completions.create(
                     model=model_name,
@@ -88,20 +115,25 @@ class LLMClient:
                 
                 # Validate with Pydantic
                 validated_obj = response_schema.model_validate(parsed_data)
-                logger.info(f"Groq call successful using {model_name} (Attempt {attempts}): {tokens} tokens, ${cost:.6f}")
+                logger.info(f"Groq call successful using {model_name} (Key #{key_idx + 1}): {tokens} tokens, ${cost:.6f}")
                 return validated_obj, total_tokens, total_cost
 
             except Exception as e:
                 err_str = str(e)
-                logger.warning(f"Groq generation attempt {attempts} using {model_name} failed: {err_str}")
+                logger.warning(f"Groq attempt {attempts} (Key #{key_idx + 1}) failed: {err_str}")
                 last_error = e
-                
+
                 if "429" in err_str or "Rate limit" in err_str:
-                    logger.info("Groq 429 Rate Limit encountered. Sleeping 8 seconds before retrying...")
-                    await asyncio.sleep(8.0)
+                    # If multiple keys exist, instantly rotate to next key without long sleep!
+                    if len(self._keys) > 1:
+                        self._rotate_key()
+                        await asyncio.sleep(0.5)
+                    else:
+                        logger.info("Single Groq key rate limited. Pausing 5 seconds before retrying...")
+                        await asyncio.sleep(5.0)
 
                 messages.append({"role": "user", "content": f"Your previous output failed validation: {err_str}. Please correct and return strictly valid JSON matching the schema."})
 
-        raise RuntimeError(f"Failed to generate valid JSON from Groq ({model_name}) after {max_retries} attempts. Last error: {last_error}")
+        raise RuntimeError(f"Failed to generate valid JSON from Groq ({model_name}) after {attempts} attempts. Last error: {last_error}")
 
 llm_client = LLMClient()

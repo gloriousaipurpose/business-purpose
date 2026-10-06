@@ -6,6 +6,7 @@ try:
     class Settings(BaseSettings):
         DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./radar.db")
         GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+        GROQ_API_KEYS: str = os.getenv("GROQ_API_KEYS", "")
         GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         MAX_COST_PER_RUN: float = float(os.getenv("MAX_COST_PER_RUN", "0.50"))
         PRODUCTHUNT_TOKEN: Optional[str] = os.getenv("PRODUCTHUNT_TOKEN")
@@ -24,6 +25,7 @@ except ImportError:
     class BasicSettings:
         DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./radar.db")
         GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+        GROQ_API_KEYS: str = os.getenv("GROQ_API_KEYS", "")
         GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         MAX_COST_PER_RUN: float = float(os.getenv("MAX_COST_PER_RUN", "0.50"))
         PRODUCTHUNT_TOKEN: Optional[str] = os.getenv("PRODUCTHUNT_TOKEN")
