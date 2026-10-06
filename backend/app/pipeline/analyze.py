@@ -1,0 +1,44 @@
+import logging
+from typing import List, Tuple, Dict, Any
+from app.models import RawItem
+from app.schemas import SectionAnalysisResult, FindingSchema, ExtractedItem
+from app.llm.prompts import get_analyze_prompt
+from app.llm.client import llm_client
+
+logger = logging.getLogger(__name__)
+
+async def run_section_analysis(
+    section: str,
+    extracted_items: List[ExtractedItem],
+    raw_items: List[RawItem],
+    topic: str = None
+) -> Tuple[SectionAnalysisResult, int, float]:
+    """
+    Analyzes gathered raw items and extracted concepts for a specific dashboard section.
+    """
+    prompt_base = get_analyze_prompt(section)
+
+    if topic and section == "deep_research":
+        prompt_base += f"\nDeep Research Topic requested by user: '{topic}'"
+
+    # Context formatting
+    context_text = "\n".join([
+        f"- Name: {item.name} ({item.kind}) | URL: {item.source_url} | Quote: \"{item.supporting_quote}\" | Desc: {item.one_line_description}"
+        for item in extracted_items
+    ])
+
+    if not context_text:
+        return SectionAnalysisResult(findings=[], summary="No significant findings in this data."), 0, 0.0
+
+    full_prompt = f"{prompt_base}\n\nEXTRACTED EVIDENCE & CONCEPTS:\n{context_text}"
+
+    try:
+        result_obj, tokens, cost = await llm_client.generate_json(
+            prompt=full_prompt,
+            response_schema=SectionAnalysisResult,
+            system_prompt="You are a market analyst. Output JSON only, strictly backed by provided evidence."
+        )
+        return result_obj, tokens, cost
+    except Exception as e:
+        logger.error(f"Analysis for section '{section}' failed: {e}")
+        return SectionAnalysisResult(findings=[], summary="No significant findings in this data."), 0, 0.0

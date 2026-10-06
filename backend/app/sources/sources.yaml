@@ -1,0 +1,40 @@
+sources:
+  - name: hackernews
+    enabled: true
+    type: hackernews
+  - name: producthunt
+    enabled: true
+    type: producthunt
+  - name: reddit
+    enabled: true
+    type: reddit
+    subreddits:
+      - entrepreneur
+      - SaaS
+      - startups
+      - indiehackers
+      - india
+      - IndiaStartups
+      - smallbusiness
+  - name: googletrends
+    enabled: true
+    type: googletrends
+  - name: github_trending
+    enabled: true
+    type: github_trending
+  - name: rss_sources
+    enabled: true
+    type: rss_sources
+    feeds:
+      - name: Inc42
+        url: https://inc42.com/feed/
+      - name: Entrackr
+        url: https://entrackr.com/feed/
+      - name: YourStory
+        url: https://yourstory.com/feed
+      - name: ET Startups
+        url: https://economictimes.indiatimes.com/tech/startups/rssfeeds/62806267.cms
+      - name: YC Blog
+        url: https://blog.ycombinator.com/rss/
+      - name: Indie Hackers
+        url: https://www.indiehackers.com/feed.xml
