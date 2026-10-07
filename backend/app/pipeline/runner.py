@@ -31,26 +31,46 @@ async def execute_run(
     db: Session,
     sections: List[str],
     run_type: str = "manual",
-    topic: Optional[str] = None
+    topic: Optional[str] = None,
+    existing_run_id: Optional[int] = None
 ) -> Run:
     """
     Orchestrates a complete Business Radar run end-to-end.
+    If existing_run_id is provided, reuses that database record instead of creating a new row.
     """
     if "all" in sections:
         active_sections = ALL_SECTIONS
     else:
         active_sections = sections
 
-    # 1. Create run row
-    run = Run(
-        started_at=datetime.utcnow(),
-        run_type=run_type,
-        sections=active_sections,
-        status="running",
-        sources_checked=[],
-        tokens_used=0,
-        estimated_cost=0.0
-    )
+    # 1. Fetch existing run or create new run row
+    if existing_run_id:
+        run = db.query(Run).filter(Run.id == existing_run_id).first()
+        if run:
+            run.sections = active_sections
+            run.status = "running"
+        else:
+            run = Run(
+                started_at=datetime.utcnow(),
+                run_type=run_type,
+                sections=active_sections,
+                status="running",
+                sources_checked=[],
+                tokens_used=0,
+                estimated_cost=0.0
+            )
+            db.add(run)
+    else:
+        run = Run(
+            started_at=datetime.utcnow(),
+            run_type=run_type,
+            sections=active_sections,
+            status="running",
+            sources_checked=[],
+            tokens_used=0,
+            estimated_cost=0.0
+        )
+        db.add(run)
 
     # Find previous completed run
     prev_run = (
@@ -62,7 +82,6 @@ async def execute_run(
     if prev_run:
         run.previous_run_id = prev_run.id
 
-    db.add(run)
     db.commit()
     db.refresh(run)
 

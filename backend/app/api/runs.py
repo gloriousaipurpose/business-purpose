@@ -10,11 +10,11 @@ from app.scheduler import run_lock
 
 router = APIRouter(prefix="/runs", tags=["Runs"])
 
-async def background_run_task(sections: List[str], topic: Optional[str]):
+async def background_run_task(run_id: int, sections: List[str], topic: Optional[str]):
     async with run_lock:
         db = SessionLocal()
         try:
-            await execute_run(db, sections=sections, run_type="manual", topic=topic)
+            await execute_run(db, sections=sections, run_type="manual", topic=topic, existing_run_id=run_id)
         finally:
             db.close()
 
@@ -39,8 +39,8 @@ async def start_manual_run(
     db.commit()
     db.refresh(run)
 
-    # Trigger async pipeline task
-    background_tasks.add_task(background_run_task, sections=sections, topic=req.topic)
+    # Trigger async pipeline task with existing run_id
+    background_tasks.add_task(background_run_task, run_id=run.id, sections=sections, topic=req.topic)
     
     return {"run_id": run.id, "message": "Manual run launched successfully.", "status": "running"}
 
