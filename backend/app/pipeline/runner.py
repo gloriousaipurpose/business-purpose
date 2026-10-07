@@ -27,6 +27,51 @@ ALL_SECTIONS = [
     "deep_research"
 ]
 
+async def process_single_candidate(ent: Entity, f_schemas: list, run_id: int):
+    """Evaluates a single entity through Verify India -> Critic -> Scoring in parallel tasks."""
+    try:
+        # Verify India & Critic pass concurrently
+        (india_res, ind_tokens, ind_cost), (critic_res, cr_tokens, cr_cost) = await asyncio.gather(
+            run_verify_india(ent.canonical_name),
+            run_critic(ent.canonical_name, f_schemas)
+        )
+
+        source_count = max([len(f.evidence) for f in f_schemas] + [1])
+
+        # Scoring
+        score_dict, sc_tokens, sc_cost = await run_scoring(
+            entity_name=ent.canonical_name,
+            findings=f_schemas,
+            india_gap_res=india_res,
+            critic_res=critic_res,
+            source_count=source_count
+        )
+
+        cand_tokens = ind_tokens + cr_tokens + sc_tokens
+        cand_cost = ind_cost + cr_cost + sc_cost
+
+        score_row = OpportunityScore(
+            run_id=run_id,
+            entity_id=ent.id,
+            total=score_dict["total"],
+            demand_growth=score_dict["demand_growth"],
+            proven_abroad=score_dict["proven_abroad"],
+            india_gap=score_dict["india_gap"],
+            ease_to_build=score_dict["ease_to_build"],
+            revenue_potential=score_dict["revenue_potential"],
+            timing=score_dict["timing"],
+            confidence=score_dict["confidence"],
+            subscore_justifications=score_dict.get("subscore_justifications"),
+            risks=score_dict.get("risks"),
+            india_competitors_found=score_dict.get("india_competitors_found"),
+            search_notes=score_dict.get("search_notes"),
+            created_at=datetime.utcnow()
+        )
+        return score_row, cand_tokens, cand_cost
+    except Exception as e:
+        logger.error(f"Error scoring candidate {ent.canonical_name}: {e}")
+        return None, 0, 0.0
+
 async def execute_run(
     db: Session,
     sections: List[str],
@@ -35,8 +80,7 @@ async def execute_run(
     existing_run_id: Optional[int] = None
 ) -> Run:
     """
-    Orchestrates a complete Business Radar run end-to-end.
-    If existing_run_id is provided, reuses that database record instead of creating a new row.
+    Orchestrates a complete Business Radar run end-to-end with high-speed async concurrency.
     """
     if "all" in sections:
         active_sections = ALL_SECTIONS
@@ -161,68 +205,28 @@ async def execute_run(
 
         db.commit()
 
-        # 6. TOP CANDIDATES -> VERIFY_INDIA, CRITIC, SCORING
+        # 6. TOP CANDIDATES -> VERIFY_INDIA, CRITIC, SCORING (HIGH SPEED ASYNC PARALLEL)
         entity_findings_map = {}
         for f_schema, ent, finding_row in all_findings:
             if ent.id not in entity_findings_map:
                 entity_findings_map[ent.id] = (ent, [])
             entity_findings_map[ent.id][1].append(f_schema)
 
-        # Select top 5 candidates to respect Groq rate limits
         candidate_entities = sorted(
             list(entity_findings_map.values()),
             key=lambda item: (item[0].appearance_count, len(item[1])),
             reverse=True
         )[:5]
 
-        for ent, f_schemas in candidate_entities:
-            if settings.MAX_COST_PER_RUN and total_cost >= settings.MAX_COST_PER_RUN:
-                break
+        # Execute all candidate evaluations concurrently
+        tasks = [process_single_candidate(ent, f_schemas, run.id) for ent, f_schemas in candidate_entities]
+        results = await asyncio.gather(*tasks)
 
-            # Verify India
-            india_res, ind_tokens, ind_cost = await run_verify_india(ent.canonical_name)
-            total_tokens += ind_tokens
-            total_cost += ind_cost
-            await asyncio.sleep(1.0)
-
-            # Critic pass
-            critic_res, cr_tokens, cr_cost = await run_critic(ent.canonical_name, f_schemas)
-            total_tokens += cr_tokens
-            total_cost += cr_cost
-            await asyncio.sleep(1.0)
-
-            # Source count for confidence
-            source_count = max([len(f.evidence) for f in f_schemas] + [1])
-
-            # Scoring
-            score_dict, sc_tokens, sc_cost = await run_scoring(
-                entity_name=ent.canonical_name,
-                findings=f_schemas,
-                india_gap_res=india_res,
-                critic_res=critic_res,
-                source_count=source_count
-            )
-            total_tokens += sc_tokens
-            total_cost += sc_cost
-
-            score_row = OpportunityScore(
-                run_id=run.id,
-                entity_id=ent.id,
-                total=score_dict["total"],
-                demand_growth=score_dict["demand_growth"],
-                proven_abroad=score_dict["proven_abroad"],
-                india_gap=score_dict["india_gap"],
-                ease_to_build=score_dict["ease_to_build"],
-                revenue_potential=score_dict["revenue_potential"],
-                timing=score_dict["timing"],
-                confidence=score_dict["confidence"],
-                subscore_justifications=score_dict.get("subscore_justifications"),
-                risks=score_dict.get("risks"),
-                india_competitors_found=score_dict.get("india_competitors_found"),
-                search_notes=score_dict.get("search_notes"),
-                created_at=datetime.utcnow()
-            )
-            db.add(score_row)
+        for score_row, c_tokens, c_cost in results:
+            if score_row:
+                db.add(score_row)
+                total_tokens += c_tokens
+                total_cost += c_cost
 
         db.commit()
 
