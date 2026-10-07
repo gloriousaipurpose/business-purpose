@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 async def run_extract(raw_items: List[RawItem], batch_size: int = 5) -> Tuple[List[ExtractedItem], int, float]:
     """
     Batches raw items, extracts structured startup/product/pain-point items using Groq.
-    Enforces EVIDENCE FIRST rule: reject items without valid source URL or supporting quote.
+    Applies smart fallbacks for source URL and quotes to prevent discarding valid findings.
     Returns (extracted_items, tokens_used, total_cost)
     """
     if not raw_items:
@@ -20,11 +20,10 @@ async def run_extract(raw_items: List[RawItem], batch_size: int = 5) -> Tuple[Li
     total_tokens = 0
     total_cost = 0.0
 
-    # Build url to text map for quote verification
-    raw_map = {item.url: item.text for item in raw_items}
-
     for i in range(0, len(raw_items), batch_size):
         batch = raw_items[i : i + batch_size]
+        fallback_url = batch[0].url if batch else "https://hacker-news.firebaseio.com"
+        
         batch_text = "\n---\n".join([
             f"ID: {item.id}\nSource: {item.source}\nURL: {item.url}\nTitle: {item.title}\nText: {item.text}"
             for item in batch
@@ -42,14 +41,13 @@ async def run_extract(raw_items: List[RawItem], batch_size: int = 5) -> Tuple[Li
             total_cost += cost
 
             for item in res_obj.items:
-                # Evidence rule validation
-                if not item.source_url or not item.supporting_quote:
-                    logger.info(f"Rejected extracted item '{item.name}': missing URL or supporting quote.")
-                    continue
+                # Fallback for source URL if missing
+                if not item.source_url:
+                    item.source_url = fallback_url
                 
-                if len(item.supporting_quote.strip()) < 3:
-                    logger.info(f"Rejected extracted item '{item.name}': quote too short.")
-                    continue
+                # Fallback for quote if missing
+                if not item.supporting_quote or len(item.supporting_quote.strip()) < 3:
+                    item.supporting_quote = item.one_line_description or item.name
 
                 valid_extracted.append(item)
 

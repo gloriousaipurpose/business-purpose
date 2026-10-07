@@ -1,5 +1,6 @@
 import logging
 import httpx
+import feedparser
 from datetime import datetime
 from typing import List
 from app.config import settings
@@ -11,6 +12,10 @@ DEFAULT_SUBREDDITS = [
     "entrepreneur", "SaaS", "startups", "indiehackers", "india", "IndiaStartups", "smallbusiness"
 ]
 
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+}
+
 class RedditSource(Source):
     name = "reddit"
 
@@ -18,41 +23,36 @@ class RedditSource(Source):
         self.subreddits = subreddits or DEFAULT_SUBREDDITS
 
     async def fetch(self) -> List[RawItemData]:
-        # Try fetching via public JSON feed with user-agent
         items = []
-        headers = {"User-Agent": settings.REDDIT_USER_AGENT or "BusinessRadar/1.0"}
-        
-        async with httpx.AsyncClient(timeout=10.0, headers=headers, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=DEFAULT_HEADERS, follow_redirects=True) as client:
             for sub in self.subreddits:
                 try:
-                    url = f"https://www.reddit.com/r/{sub}/hot.json?limit=15"
+                    # Use Reddit RSS feed endpoint (most reliable across all networks)
+                    url = f"https://www.reddit.com/r/{sub}/.rss"
                     resp = await client.get(url)
                     if resp.status_code != 200:
-                        logger.warning(f"Reddit r/{sub} status {resp.status_code}")
+                        logger.warning(f"Reddit r/{sub} RSS status {resp.status_code}")
                         continue
-                    data = resp.json()
-                    posts = data.get("data", {}).get("children", [])
-                    for post in posts:
-                        pdata = post.get("data", {})
-                        if pdata.get("stickied"):
-                            continue
-                        title = pdata.get("title", "")
-                        selftext = pdata.get("selftext", "")
-                        permalink = pdata.get("permalink", "")
-                        post_url = f"https://reddit.com{permalink}" if permalink else pdata.get("url", "")
-                        created_utc = pdata.get("created_utc")
-                        pub_date = datetime.utcfromtimestamp(created_utc) if created_utc else datetime.utcnow()
-
-                        content = f"Subreddit: r/{sub}\nTitle: {title}\nText: {selftext[:1000]}"
+                    
+                    feed = feedparser.parse(resp.text)
+                    for entry in feed.entries[:15]:
+                        title = entry.get("title", "")
+                        summary = entry.get("summary", "")
+                        link = entry.get("link", f"https://reddit.com/r/{sub}")
+                        
+                        # Strip basic HTML tags from RSS summary
+                        clean_text = summary.replace("<p>", " ").replace("</p>", " ").replace("<!-- SC_OFF -->", "").replace("<!-- SC_ON -->", "").strip()
+                        
+                        content = f"Subreddit: r/{sub}\nTitle: {title}\nText: {clean_text[:1200]}"
                         items.append(RawItemData(
                             source=self.name,
-                            url=post_url,
+                            url=link,
                             title=f"r/{sub}: {title}",
                             text=content,
-                            published_at=pub_date
+                            published_at=datetime.utcnow()
                         ))
                 except Exception as e:
-                    logger.warning(f"Error fetching Reddit r/{sub}: {e}")
+                    logger.warning(f"Error fetching Reddit r/{sub} RSS: {e}")
                     continue
 
         return items

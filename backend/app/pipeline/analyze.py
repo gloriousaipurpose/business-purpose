@@ -15,6 +15,7 @@ async def run_section_analysis(
 ) -> Tuple[SectionAnalysisResult, int, float]:
     """
     Analyzes gathered raw items and extracted concepts for a specific dashboard section.
+    Includes raw items context fallback if extracted concepts are sparse.
     """
     prompt_base = get_analyze_prompt(section)
 
@@ -22,10 +23,21 @@ async def run_section_analysis(
         prompt_base += f"\nDeep Research Topic requested by user: '{topic}'"
 
     # Context formatting
-    context_text = "\n".join([
-        f"- Name: {item.name} ({item.kind}) | URL: {item.source_url} | Quote: \"{item.supporting_quote}\" | Desc: {item.one_line_description}"
-        for item in extracted_items
-    ])
+    context_lines = []
+    if extracted_items:
+        for item in extracted_items:
+            context_lines.append(
+                f"- Name: {item.name} ({item.kind}) | URL: {item.source_url} | Quote: \"{item.supporting_quote}\" | Desc: {item.one_line_description}"
+            )
+    
+    # Fallback to raw items if extracted items list is empty or small
+    if len(context_lines) < 3 and raw_items:
+        for ritem in raw_items[:20]:
+            context_lines.append(
+                f"- Raw item [{ritem.source}]: {ritem.title} | URL: {ritem.url} | Content: {ritem.text[:300]}"
+            )
+
+    context_text = "\n".join(context_lines)
 
     if not context_text:
         return SectionAnalysisResult(findings=[], summary="No significant findings in this data."), 0, 0.0

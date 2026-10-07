@@ -15,11 +15,8 @@ OUTPUT_TOKEN_COST_PER_1K = 0.00079
 
 AVAILABLE_GROQ_MODELS = [
     "openai/gpt-oss-120b",
-    "llama-3.3-70b-versatile",
-    "llama3-70b-8192",
-    "llama3-8b-8192",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b"
 ]
 
 class LLMClient:
@@ -71,13 +68,12 @@ class LLMClient:
             else:
                 logger.info(f"Rotated Groq API Key on 429 Rate Limit: Switched key #{prev_idx + 1} ➔ #{new_idx + 1} of {len(self._keys)}")
         else:
-            # Single key setup: rotate model fallback!
             self._current_model_idx = (self._current_model_idx + 1) % len(AVAILABLE_GROQ_MODELS)
             new_model = AVAILABLE_GROQ_MODELS[self._current_model_idx]
             logger.info(f"Groq API Key rate limited. Switched Model Fallback ➔ {new_model}")
 
     def get_active_model(self) -> str:
-        if settings.GROQ_MODEL and self._current_model_idx == 0:
+        if settings.GROQ_MODEL and self._current_model_idx == 0 and settings.GROQ_MODEL in AVAILABLE_GROQ_MODELS:
             return settings.GROQ_MODEL
         return AVAILABLE_GROQ_MODELS[self._current_model_idx % len(AVAILABLE_GROQ_MODELS)]
 
@@ -105,7 +101,6 @@ class LLMClient:
             {"role": "user", "content": prompt}
         ]
 
-        # Total attempts = max_retries * keys * models
         total_attempts_allowed = max_retries * max(1, len(self._keys)) * len(AVAILABLE_GROQ_MODELS)
 
         while attempts < total_attempts_allowed:
