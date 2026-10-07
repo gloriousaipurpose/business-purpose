@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Clock, ArrowRight, CheckCircle, RefreshCw } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle, RefreshCw, Timer } from 'lucide-react';
 import { Run } from '../types';
 import { useRun } from '../context/RunContext';
 
@@ -37,6 +37,17 @@ export const PreviousAnalysesPage: React.FC = () => {
       return;
     }
     navigate(`/compare?run_ids=${selectedRunIds.join(',')}`);
+  };
+
+  const getRunDuration = (startStr: string, endStr?: string) => {
+    if (!endStr) return null;
+    const startIso = startStr.endsWith('Z') || startStr.includes('+') ? startStr : startStr.replace(' ', 'T') + 'Z';
+    const endIso = endStr.endsWith('Z') || endStr.includes('+') ? endStr : endStr.replace(' ', 'T') + 'Z';
+    const secs = Math.max(0, Math.floor((new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000));
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
   };
 
   return (
@@ -88,6 +99,7 @@ export const PreviousAnalysesPage: React.FC = () => {
         <div className="space-y-3">
           {runs.map((run: Run) => {
             const isSelected = selectedRunIds.includes(run.id);
+            const duration = getRunDuration(run.started_at, run.finished_at);
             const formattedDate = new Date(run.started_at).toLocaleString('en-IN', {
               day: 'numeric',
               month: 'short',
@@ -129,6 +141,12 @@ export const PreviousAnalysesPage: React.FC = () => {
                       }`}>
                         {run.status}
                       </span>
+                      {duration && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#13111e] text-purple-300 border border-[#29253b] flex items-center gap-1">
+                          <Timer className="w-3 h-3 text-purple-400" />
+                          {duration}
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs text-[#a19dbf] mt-1 line-clamp-2">

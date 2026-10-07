@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle, AlertCircle, Sparkles, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Sparkles, ChevronDown, ChevronUp, X, Check, Timer } from 'lucide-react';
 import { useRun } from '../context/RunContext';
 
 export const LiveProgressModal: React.FC = () => {
@@ -15,13 +15,46 @@ export const LiveProgressModal: React.FC = () => {
     runStatusData,
   } = useRun();
 
-  if (!activeRunId || !isWidgetVisible) {
-    return null;
-  }
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
   const status = runStatusData?.status || 'running';
   const isFinished = status === 'completed' || status === 'partial' || status === 'failed';
   const progressPct = runStatusData?.progress_percentage || 10;
+
+  // Live timer calculation
+  useEffect(() => {
+    if (!runStatusData?.started_at) return;
+
+    const rawStart = runStatusData.started_at;
+    const startIso = rawStart.endsWith('Z') || rawStart.includes('+') ? rawStart : rawStart.replace(' ', 'T') + 'Z';
+    const startTime = new Date(startIso).getTime();
+
+    const updateTimer = () => {
+      let endTime = Date.now();
+      if (runStatusData?.finished_at) {
+        const rawEnd = runStatusData.finished_at;
+        const endIso = rawEnd.endsWith('Z') || rawEnd.includes('+') ? rawEnd : rawEnd.replace(' ', 'T') + 'Z';
+        endTime = new Date(endIso).getTime();
+      }
+      const diff = Math.max(0, Math.floor((endTime - startTime) / 1000));
+      setElapsedSeconds(diff);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [runStatusData?.started_at, runStatusData?.finished_at]);
+
+  if (!activeRunId || !isWidgetVisible) {
+    return null;
+  }
+
+  const formatDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
+  };
 
   const handleDismiss = () => {
     if (isFinished) {
@@ -31,12 +64,11 @@ export const LiveProgressModal: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
     } else {
-      // Hide widget popover while keeping backend run alive
       setIsWidgetVisible(false);
     }
   };
 
-  // Minimized Compact Pill Floating Badge
+  // Minimized Compact Pill Floating Badge with Live Timer
   if (isWidgetMinimized) {
     return (
       <div className="fixed top-16 right-6 z-50 pointer-events-auto">
@@ -49,9 +81,12 @@ export const LiveProgressModal: React.FC = () => {
           ) : (
             <Sparkles className="w-4 h-4 text-purple-300 animate-spin" />
           )}
-          <div className="text-xs">
+          <div className="text-xs flex items-center gap-2">
             <span className="text-white font-medium">Scan #{activeRunId}: </span>
             <span className="text-purple-300 font-semibold">{isFinished ? 'Done' : `${progressPct}%`}</span>
+            <span className="text-[#7e7b99] border-l border-[#29253b] pl-2 flex items-center gap-1 font-mono text-[11px]">
+              <Timer className="w-3 h-3 text-purple-400" /> {formatDuration(elapsedSeconds)}
+            </span>
           </div>
           <ChevronUp className="w-4 h-4 text-[#7e7b99]" />
         </div>
@@ -59,7 +94,7 @@ export const LiveProgressModal: React.FC = () => {
     );
   }
 
-  // Non-Blocking Floating Top-Right Widget Card
+  // Non-Blocking Floating Top-Right Widget Card with Live Elapsed Timer
   return (
     <div className="fixed top-16 right-6 z-50 pointer-events-auto w-96 bg-[#181623] border border-[#3b3754] rounded-xl p-4 shadow-2xl space-y-4 select-none animate-in fade-in slide-in-from-top-2">
       {/* Header */}
@@ -69,8 +104,8 @@ export const LiveProgressModal: React.FC = () => {
             {isFinished ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4 animate-spin" />}
           </div>
           <div>
-            <h3 className="font-semibold text-xs text-white">
-              {isFinished ? 'Cloud Scan Complete' : 'Cloud Scan Running'}
+            <h3 className="font-semibold text-xs text-white flex items-center gap-2">
+              <span>{isFinished ? 'Cloud Scan Complete' : 'Cloud Scan Running'}</span>
             </h3>
             <p className="text-[10px] text-[#7e7b99]">
               Run #{activeRunId} • You can browse the app freely
@@ -96,17 +131,26 @@ export const LiveProgressModal: React.FC = () => {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar & Live Timer Counter */}
       <div className="space-y-1.5">
-        <div className="flex justify-between text-xs">
+        <div className="flex justify-between items-center text-xs">
           <span className="text-[#a19dbf]">
             Status:{' '}
             <strong className={`uppercase ${isFinished ? 'text-emerald-400' : 'text-purple-300'}`}>
               {status}
             </strong>
           </span>
-          <span className="text-purple-300 font-semibold">{progressPct}%</span>
+
+          {/* Live Duration Badge */}
+          <div className="flex items-center gap-2">
+            <span className="bg-[#13111e] border border-[#29253b] text-purple-300 px-2 py-0.5 rounded text-[11px] font-mono flex items-center gap-1">
+              <Timer className="w-3 h-3 text-purple-400 animate-pulse" />
+              <span>{isFinished ? `Finished in ${formatDuration(elapsedSeconds)}` : `Time: ${formatDuration(elapsedSeconds)}`}</span>
+            </span>
+            <span className="text-purple-300 font-semibold">{progressPct}%</span>
+          </div>
         </div>
+
         <div className="w-full bg-[#13111e] h-2 rounded-full overflow-hidden border border-[#29253b]">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
@@ -152,9 +196,10 @@ export const LiveProgressModal: React.FC = () => {
       {isFinished ? (
         <button
           onClick={handleDismiss}
-          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white rounded-lg transition-colors shadow-md"
+          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white rounded-lg transition-colors shadow-md flex items-center justify-center gap-1.5"
         >
-          Scan Finished — Click to Refresh & View Results
+          <CheckCircle className="w-4 h-4" />
+          <span>Scan Finished ({formatDuration(elapsedSeconds)}) — Refresh & View</span>
         </button>
       ) : (
         <p className="text-[10px] text-[#7e7b99] text-center italic">

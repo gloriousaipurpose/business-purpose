@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Bell, Pause, Play, Clock, X, Radio, BellRing, Sparkles } from 'lucide-react';
+import { Bell, Pause, Play, Clock, X, Radio, BellRing, Sparkles, Timer } from 'lucide-react';
 import { NotificationItem } from '../types';
 import { useRun } from '../context/RunContext';
 
 export const Header: React.FC = () => {
   const queryClient = useQueryClient();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -19,6 +20,37 @@ export const Header: React.FC = () => {
     setIsWidgetMinimized,
     runStatusData,
   } = useRun();
+
+  // Live Timer ticker for Header button
+  useEffect(() => {
+    if (!runStatusData?.started_at) return;
+
+    const rawStart = runStatusData.started_at;
+    const startIso = rawStart.endsWith('Z') || rawStart.includes('+') ? rawStart : rawStart.replace(' ', 'T') + 'Z';
+    const startTime = new Date(startIso).getTime();
+
+    const updateTimer = () => {
+      let endTime = Date.now();
+      if (runStatusData?.finished_at) {
+        const rawEnd = runStatusData.finished_at;
+        const endIso = rawEnd.endsWith('Z') || rawEnd.includes('+') ? rawEnd : rawEnd.replace(' ', 'T') + 'Z';
+        endTime = new Date(endIso).getTime();
+      }
+      const diff = Math.max(0, Math.floor((endTime - startTime) / 1000));
+      setElapsedSeconds(diff);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [runStatusData?.started_at, runStatusData?.finished_at]);
+
+  const formatDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
+  };
 
   // Fetch Scheduler Status safely
   const { data: schedulerStatus } = useQuery({
@@ -99,6 +131,10 @@ export const Header: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5 text-purple-300 animate-spin" />
             <span>
               Cloud Scan #{activeRunId}: {runStatusData?.progress_percentage || 10}%
+            </span>
+            <span className="font-mono text-purple-300 border-l border-purple-500/40 pl-2 flex items-center gap-1">
+              <Timer className="w-3 h-3 text-purple-400" />
+              {formatDuration(elapsedSeconds)}
             </span>
           </button>
         ) : (
