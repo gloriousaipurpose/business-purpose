@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Clock, ArrowRight, CheckCircle } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle, RefreshCw } from 'lucide-react';
 import { Run } from '../types';
+import { useRun } from '../context/RunContext';
 
 export const PreviousAnalysesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { activeRunId } = useRun();
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([]);
 
-  const { data: runs = [], isLoading } = useQuery({
+  const { data: runs = [], isLoading, refetch } = useQuery({
     queryKey: ['previousRuns'],
     queryFn: () => apiClient.getRuns(),
+    refetchInterval: activeRunId ? 3000 : 10000,
+    refetchOnMount: 'always',
     retry: false,
   });
 
@@ -49,8 +53,16 @@ export const PreviousAnalysesPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Compare Button */}
+        {/* Compare & Refresh Controls */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            className="p-2 bg-[#181623] border border-[#29253b] text-[#7e7b99] hover:text-white rounded-lg transition-colors"
+            title="Refresh runs timeline"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
           <span className="text-xs text-[#7e7b99]">
             Selected: <strong className="text-purple-300">{selectedRunIds.length}/3</strong> runs
           </span>
@@ -105,12 +117,16 @@ export const PreviousAnalysesPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-white text-sm">
-                        Analysis Run - {formattedDate}
+                        Analysis Run #{run.id} • {formattedDate}
                       </h3>
                       <span className="px-2 py-0.5 rounded text-[10px] uppercase font-medium bg-[#29253b] text-purple-300 border border-[#3b3754]">
                         {run.run_type}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] uppercase font-medium bg-[#13111e] text-[#a19dbf] border border-[#29253b]">
+                      <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-semibold border ${
+                        run.status === 'completed' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800' :
+                        run.status === 'running' ? 'bg-purple-950/60 text-purple-300 border-purple-800 animate-pulse' :
+                        'bg-amber-950/60 text-amber-300 border-amber-800'
+                      }`}>
                         {run.status}
                       </span>
                     </div>

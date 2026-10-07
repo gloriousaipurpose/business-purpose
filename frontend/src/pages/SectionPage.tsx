@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { FindingCard } from '../components/FindingCard';
 import { ScoreBreakdownModal } from '../components/ScoreBreakdownModal';
-import { Play, Clock, Search, AlertCircle, Sparkles } from 'lucide-react';
+import { Play, Clock, Search, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import { SECTIONS } from '../components/Sidebar';
 import { useRun } from '../context/RunContext';
 
@@ -23,9 +23,11 @@ export const SectionPage: React.FC = () => {
   };
 
   // Fetch Latest Section Findings safely
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['sectionLatest', sectionName],
     queryFn: () => apiClient.getLatestSection(sectionName),
+    refetchInterval: activeRunId ? 3000 : 10000,
+    refetchOnMount: 'always',
     retry: false,
   });
 
@@ -63,6 +65,14 @@ export const SectionPage: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            className="p-2 bg-[#181623] border border-[#29253b] text-[#7e7b99] hover:text-white rounded-lg transition-colors"
+            title="Refresh section findings"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
           {sectionName === 'deep_research' && (
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#7e7b99] absolute left-3 top-2.5" />

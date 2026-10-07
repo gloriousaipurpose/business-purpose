@@ -53,12 +53,27 @@ export const RunProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
   });
 
+  // Automatically invalidate ALL application queries whenever an active run finishes!
+  useEffect(() => {
+    if (runStatusData?.status) {
+      const status = runStatusData.status;
+      if (status === 'completed' || status === 'partial' || status === 'failed') {
+        queryClient.invalidateQueries({ queryKey: ['sectionLatest'] });
+        queryClient.invalidateQueries({ queryKey: ['previousRuns'] });
+        queryClient.invalidateQueries({ queryKey: ['opportunitiesRanked'] });
+        queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+        queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
+      }
+    }
+  }, [runStatusData?.status, queryClient]);
+
   const startRun = async (sections: string[], topic?: string) => {
     const res = await apiClient.startRun(sections, topic);
     setActiveRunId(res.run_id);
     setIsWidgetVisible(true);
     setIsWidgetMinimized(false);
     queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
+    queryClient.invalidateQueries({ queryKey: ['previousRuns'] });
     return res.run_id;
   };
 

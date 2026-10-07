@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { ScoreBreakdownModal } from '../components/ScoreBreakdownModal';
-import { Award, Shield, CheckCircle, ChevronRight } from 'lucide-react';
+import { Award, Shield, CheckCircle, ChevronRight, RefreshCw } from 'lucide-react';
 import { OpportunityScore } from '../types';
+import { useRun } from '../context/RunContext';
 
 export const BestOpportunitiesPage: React.FC = () => {
+  const { activeRunId } = useRun();
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
 
-  const { data: opportunities = [], isLoading } = useQuery({
+  const { data: opportunities = [], isLoading, refetch } = useQuery({
     queryKey: ['opportunitiesRanked'],
     queryFn: () => apiClient.getOpportunities(),
+    refetchInterval: activeRunId ? 3000 : 10000,
+    refetchOnMount: 'always',
     retry: false,
   });
 
@@ -28,8 +32,17 @@ export const BestOpportunitiesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="px-3 py-1.5 bg-[#13111e] border border-[#29253b] rounded-lg text-xs text-[#a19dbf]">
-          Total Candidates: <strong className="text-purple-300 font-semibold">{opportunities.length}</strong>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            className="p-2 bg-[#181623] border border-[#29253b] text-[#7e7b99] hover:text-white rounded-lg transition-colors"
+            title="Refresh opportunities list"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <div className="px-3 py-1.5 bg-[#13111e] border border-[#29253b] rounded-lg text-xs text-[#a19dbf]">
+            Total Candidates: <strong className="text-purple-300 font-semibold">{opportunities.length}</strong>
+          </div>
         </div>
       </div>
 
