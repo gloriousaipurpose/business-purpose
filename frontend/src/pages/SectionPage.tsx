@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { FindingCard } from '../components/FindingCard';
 import { ScoreBreakdownModal } from '../components/ScoreBreakdownModal';
-import { LiveProgressModal } from '../components/LiveProgressModal';
-import { Play, Clock, Search, AlertCircle } from 'lucide-react';
+import { Play, Clock, Search, AlertCircle, Sparkles } from 'lucide-react';
 import { SECTIONS } from '../components/Sidebar';
+import { useRun } from '../context/RunContext';
 
 export const SectionPage: React.FC = () => {
   const { sectionName = 'new_startups' } = useParams<{ sectionName: string }>();
-  const queryClient = useQueryClient();
+  const { activeRunId, startRun } = useRun();
 
   const [topic, setTopic] = useState('');
-  const [activeRunId, setActiveRunId] = useState<number | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   const currentSectionConfig = SECTIONS.find(
     (s) => s.id === sectionName || s.path.endsWith(sectionName)
@@ -22,22 +22,8 @@ export const SectionPage: React.FC = () => {
     label: sectionName.replace(/_/g, ' ').toUpperCase(),
   };
 
-  // Fetch active running runs on server to auto-attach if user reopens app
-  const { data: runningRuns } = useQuery({
-    queryKey: ['runningRunsCheck'],
-    queryFn: () => apiClient.getRuns(undefined, 'running'),
-    refetchInterval: 5000,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (runningRuns && runningRuns.length > 0 && !activeRunId) {
-      setActiveRunId(runningRuns[0].id);
-    }
-  }, [runningRuns, activeRunId]);
-
   // Fetch Latest Section Findings safely
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['sectionLatest', sectionName],
     queryFn: () => apiClient.getLatestSection(sectionName),
     retry: false,
@@ -45,13 +31,16 @@ export const SectionPage: React.FC = () => {
 
   const handleRunNow = async () => {
     try {
-      const res = await apiClient.startRun([sectionName], topic);
-      setActiveRunId(res.run_id);
-      queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
+      setIsStarting(true);
+      await startRun([sectionName], topic);
     } catch (err: any) {
       alert(err?.response?.data?.detail || 'Failed to trigger analysis run.');
+    } finally {
+      setIsStarting(false);
     }
   };
+
+  const isRunActive = !!activeRunId || isStarting;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -89,15 +78,24 @@ export const SectionPage: React.FC = () => {
 
           <button
             onClick={handleRunNow}
-            disabled={!!activeRunId}
+            disabled={isRunActive}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border font-medium text-xs transition-colors ${
-              activeRunId
+              isRunActive
                 ? 'bg-[#13111e] text-[#7e7b99] border-[#29253b] cursor-not-allowed'
                 : 'bg-[#29253b] hover:bg-[#322d48] text-purple-200 border-[#3b3754]'
             }`}
           >
-            <Play className="w-3.5 h-3.5 fill-current text-purple-300" />
-            <span>{activeRunId ? 'Scan Running in Cloud...' : 'Run Analysis Now'}</span>
+            {isRunActive ? (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-purple-300 animate-spin" />
+                <span>Scan Running in Cloud...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-current text-purple-300" />
+                <span>Run Analysis Now</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -143,19 +141,6 @@ export const SectionPage: React.FC = () => {
         <ScoreBreakdownModal
           entityId={selectedEntityId}
           onClose={() => setSelectedEntityId(null)}
-        />
-      )}
-
-      {/* Live Progress Modal */}
-      {activeRunId && (
-        <LiveProgressModal
-          runId={activeRunId}
-          onComplete={() => {
-            refetch();
-            queryClient.invalidateQueries({ queryKey: ['sectionLatest'] });
-            queryClient.invalidateQueries({ queryKey: ['runningRunsCheck'] });
-          }}
-          onClose={() => setActiveRunId(null)}
         />
       )}
     </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Bell, Pause, Play, Clock, X, Radio, BellRing } from 'lucide-react';
+import { Bell, Pause, Play, Clock, X, Radio, BellRing, Sparkles } from 'lucide-react';
 import { NotificationItem } from '../types';
+import { useRun } from '../context/RunContext';
 
 export const Header: React.FC = () => {
   const queryClient = useQueryClient();
@@ -10,6 +11,14 @@ export const Header: React.FC = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
+
+  const {
+    activeRunId,
+    isWidgetVisible,
+    setIsWidgetVisible,
+    setIsWidgetMinimized,
+    runStatusData,
+  } = useRun();
 
   // Fetch Scheduler Status safely
   const { data: schedulerStatus } = useQuery({
@@ -75,25 +84,49 @@ export const Header: React.FC = () => {
   const isPaused = schedulerStatus?.is_paused ?? false;
 
   return (
-    <header className="h-14 border-b border-[#29253b] bg-[#13111e] px-6 flex items-center justify-between sticky top-0 z-20 select-none">
-      <div className="flex items-center gap-4 text-xs">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf]">
-          <Clock className="w-3.5 h-3.5 text-purple-300" />
-          <span>Next Auto Scan:</span>
-          <span className="font-medium text-white">
-            {isPaused
-              ? 'Paused'
-              : schedulerStatus?.next_run_time
-              ? new Date(schedulerStatus.next_run_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : `Every ${schedulerStatus?.run_interval_hours || 5}h`}
-          </span>
-        </div>
+    <header className="h-14 border-b border-[#29253b] bg-[#13111e] px-6 flex items-center justify-between sticky top-0 z-40 select-none">
+      <div className="flex items-center gap-3 text-xs">
+        {/* Active Cloud Scan Banner / Button in Top Header */}
+        {activeRunId ? (
+          <button
+            onClick={() => {
+              setIsWidgetVisible(!isWidgetVisible);
+              setIsWidgetMinimized(false);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/40 border border-purple-500/50 text-purple-200 text-xs font-semibold hover:bg-purple-900/60 transition-all animate-pulse"
+            title="Click to toggle detailed progress panel"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-300 animate-spin" />
+            <span>
+              Cloud Scan #{activeRunId}: {runStatusData?.progress_percentage || 10}%
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf]">
+            <Clock className="w-3.5 h-3.5 text-purple-300" />
+            <span>Next Auto Scan:</span>
+            <span className="font-medium text-white">
+              {isPaused
+                ? 'Paused'
+                : schedulerStatus?.next_run_time
+                ? new Date(schedulerStatus.next_run_time).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : `Every ${schedulerStatus?.run_interval_hours || 5}h`}
+            </span>
+          </div>
+        )}
 
         <button
           onClick={() => (isPaused ? resumeMutation.mutate() : pauseMutation.mutate())}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#181623] border border-[#29253b] text-[#a19dbf] hover:text-white hover:border-[#3b3754] transition-colors"
         >
-          {isPaused ? <Play className="w-3.5 h-3.5 text-purple-300" /> : <Pause className="w-3.5 h-3.5 text-purple-300" />}
+          {isPaused ? (
+            <Play className="w-3.5 h-3.5 text-purple-300" />
+          ) : (
+            <Pause className="w-3.5 h-3.5 text-purple-300" />
+          )}
           <span>{isPaused ? 'Resume Schedule' : 'Pause Schedule'}</span>
         </button>
       </div>
