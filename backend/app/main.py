@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.db import Base, engine
+from app.db import Base, engine, SessionLocal
+from app.models import Run
 from app.scheduler import start_scheduler
 from app.api.runs import router as runs_router
 from app.api.sections import router as sections_router
@@ -18,12 +20,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger("business_radar")
 
+def cleanup_stuck_runs():
+    db = SessionLocal()
+    try:
+        stuck_runs = db.query(Run).filter(Run.status == "running").all()
+        if stuck_runs:
+            logger.info(f"Cleaning up {len(stuck_runs)} stuck 'running' runs from previous server session...")
+            for r in stuck_runs:
+                r.status = "failed"
+                r.summary_text = "Run interrupted by server restart."
+                r.finished_at = datetime.utcnow()
+            db.commit()
+    except Exception as e:
+        logger.error(f"Error cleaning stuck runs: {e}")
+    finally:
+        db.close()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
     logger.info("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
-    logger.info("Starting background APScheduler...")
+    
+    logger.info("Cleaning up stuck runs from previous sessions...")
+    cleanup_stuck_runs()
+
+    logger.info("Starting background APScheduler (runs every 5 hours)...")
     start_scheduler()
     yield
     # Shutdown actions

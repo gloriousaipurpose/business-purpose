@@ -21,7 +21,7 @@ export const LiveProgressModal: React.FC = () => {
   const isFinished = status === 'completed' || status === 'partial' || status === 'failed';
   const progressPct = runStatusData?.progress_percentage || 10;
 
-  // Live timer calculation
+  // Live timer calculation with timezone & skew safeguards
   useEffect(() => {
     if (!runStatusData?.started_at) return;
 
@@ -36,8 +36,14 @@ export const LiveProgressModal: React.FC = () => {
         const endIso = rawEnd.endsWith('Z') || rawEnd.includes('+') ? rawEnd : rawEnd.replace(' ', 'T') + 'Z';
         endTime = new Date(endIso).getTime();
       }
+      
       const diff = Math.max(0, Math.floor((endTime - startTime) / 1000));
-      setElapsedSeconds(diff);
+      // Safeguard against bogus offsets or old DB timestamps
+      if (diff > 3600) {
+        setElapsedSeconds(0);
+      } else {
+        setElapsedSeconds(diff);
+      }
     };
 
     updateTimer();
