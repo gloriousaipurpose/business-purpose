@@ -15,7 +15,7 @@ async def run_section_analysis(
 ) -> Tuple[SectionAnalysisResult, int, float]:
     """
     Analyzes gathered raw items and extracted concepts for a specific dashboard section.
-    Includes raw items context fallback if extracted concepts are sparse.
+    Keeps context concise to stay safely under Groq TPM/ITPM limits.
     """
     prompt_base = get_analyze_prompt(section)
 
@@ -25,16 +25,16 @@ async def run_section_analysis(
     # Context formatting
     context_lines = []
     if extracted_items:
-        for item in extracted_items:
+        for item in extracted_items[:10]:
             context_lines.append(
-                f"- Name: {item.name} ({item.kind}) | URL: {item.source_url} | Quote: \"{item.supporting_quote}\" | Desc: {item.one_line_description}"
+                f"- Name: {item.name} ({item.kind}) | URL: {item.source_url} | Quote: \"{(item.supporting_quote or '')[:150]}\" | Desc: {(item.one_line_description or '')[:150]}"
             )
     
     # Fallback to raw items if extracted items list is empty or small
     if len(context_lines) < 3 and raw_items:
-        for ritem in raw_items[:20]:
+        for ritem in raw_items[:10]:
             context_lines.append(
-                f"- Raw item [{ritem.source}]: {ritem.title} | URL: {ritem.url} | Content: {ritem.text[:300]}"
+                f"- Raw item [{ritem.source}]: {ritem.title[:100]} | URL: {ritem.url} | Content: {(ritem.text or '')[:200]}"
             )
 
     context_text = "\n".join(context_lines)

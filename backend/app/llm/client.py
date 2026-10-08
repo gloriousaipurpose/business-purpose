@@ -86,7 +86,7 @@ class LLMClient:
     ) -> Tuple[T, int, float]:
         """
         Sends prompt to Groq API with JSON mode enabled.
-        Paces requests and automatically rotates API keys & fallback models on 429 Rate Limits.
+        Paces requests and automatically rotates API keys & fallback models on 429/413 Rate Limits.
         Validates against Pydantic schema `response_schema`.
         Returns tuple: (validated_pydantic_object, tokens_used, estimated_cost)
         """
@@ -117,7 +117,7 @@ class LLMClient:
                     messages=messages,
                     response_format={"type": "json_object"},
                     temperature=0.2,
-                    max_tokens=4000
+                    max_tokens=1500
                 )
 
                 usage = response.usage
@@ -144,9 +144,9 @@ class LLMClient:
                 logger.warning(f"Groq attempt {attempts} (Model: {model_name}, Key #{key_idx + 1}) failed: {err_str}")
                 last_error = e
 
-                if "429" in err_str or "Rate limit" in err_str or "limit" in err_str.lower():
+                if "429" in err_str or "413" in err_str or "limit" in err_str.lower():
                     self._rotate_key_or_model()
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(1.5)
 
                 messages.append({"role": "user", "content": f"Your previous output failed validation: {err_str}. Please correct and return strictly valid JSON matching the schema."})
 

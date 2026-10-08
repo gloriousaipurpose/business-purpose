@@ -7,10 +7,10 @@ from app.llm.client import llm_client
 
 logger = logging.getLogger(__name__)
 
-async def run_extract(raw_items: List[RawItem], batch_size: int = 5) -> Tuple[List[ExtractedItem], int, float]:
+async def run_extract(raw_items: List[RawItem], batch_size: int = 3) -> Tuple[List[ExtractedItem], int, float]:
     """
     Batches raw items, extracts structured startup/product/pain-point items using Groq.
-    Applies smart fallbacks for source URL and quotes to prevent discarding valid findings.
+    Caps batch prompt size to stay well under TPM/ITPM limits.
     Returns (extracted_items, tokens_used, total_cost)
     """
     if not raw_items:
@@ -25,7 +25,7 @@ async def run_extract(raw_items: List[RawItem], batch_size: int = 5) -> Tuple[Li
         fallback_url = batch[0].url if batch else "https://hacker-news.firebaseio.com"
         
         batch_text = "\n---\n".join([
-            f"ID: {item.id}\nSource: {item.source}\nURL: {item.url}\nTitle: {item.title}\nText: {item.text}"
+            f"ID: {item.id}\nSource: {item.source}\nURL: {item.url}\nTitle: {item.title[:150]}\nText: {item.text[:400]}"
             for item in batch
         ])
 
