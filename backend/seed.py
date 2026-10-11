@@ -10,49 +10,20 @@ from app.db import Base, engine, SessionLocal, ensure_schema_columns
 from app.models import Run, RawItem, Entity, Finding, OpportunityScore, Notification
 
 def seed_database(force: bool = False):
-    print("Creating database schema & ensuring columns...")
+    """
+    Safely seeds sample data ONLY if the database is completely empty.
+    Strictly preserves all existing analysis history and runs.
+    """
+    print("Ensuring database schema and columns...")
     Base.metadata.create_all(bind=engine)
     ensure_schema_columns()
     db = SessionLocal()
 
-    # Clear tables if forced
-    if force:
-        print("Force mode enabled: Clearing all existing tables for a clean seed...")
-        db.query(Notification).delete()
-        db.query(OpportunityScore).delete()
-        db.query(Finding).delete()
-        db.query(Entity).delete()
-        db.query(RawItem).delete()
-        db.query(Run).delete()
-        db.commit()
-    elif db.query(Run).count() > 0:
-        # Check if any findings are missing pain_point or sections
-        existing_findings = db.query(Finding).all()
-        needs_update = False
-        for f in existing_findings:
-            if not getattr(f, "pain_point", None) or not getattr(f, "action_plan", None):
-                needs_update = True
-                break
-
-        section_counts = {sec: db.query(Finding).filter(Finding.section == sec).count() for sec in [
-            "new_startups", "booming_products", "pain_points", "ai_opportunities", "emerging_trends", "india_gaps", "deep_research"
-        ]}
-        if any(c == 0 for c in section_counts.values()):
-            needs_update = True
-
-        if not needs_update:
-            print("Database already contains complete data across all sections. Skipping seed.")
-            db.close()
-            return
-        else:
-            print("Refreshing sample database with complete 7-section findings, pain points, and action plans...")
-            db.query(Notification).delete()
-            db.query(OpportunityScore).delete()
-            db.query(Finding).delete()
-            db.query(Entity).delete()
-            db.query(RawItem).delete()
-            db.query(Run).delete()
-            db.commit()
+    existing_run_count = db.query(Run).count()
+    if existing_run_count > 0:
+        print(f"Database already contains {existing_run_count} runs. Preserving all historical intelligence data. Skipping seed.")
+        db.close()
+        return
 
     print("Seeding sample analysis runs, entities, findings, scores, and notifications...")
 
