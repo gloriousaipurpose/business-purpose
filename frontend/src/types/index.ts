@@ -13,6 +13,8 @@ export interface Finding {
   kind: string;
   title: string;
   summary: string;
+  pain_point?: string;
+  action_plan?: string;
   evidence: EvidenceItem[];
   confidence: 'high' | 'medium' | 'low';
   score?: number;

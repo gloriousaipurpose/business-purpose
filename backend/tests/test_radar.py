@@ -89,10 +89,27 @@ def test_append_only_records_no_delete(db_session):
         kind="startup",
         title="Test Startup",
         summary="Test summary",
+        pain_point="Manual repetitive workflows without automation.",
+        action_plan="Build a lightweight Chrome Extension to automate entry.",
         evidence=[{"url": "http://test.com", "quote": "Quote", "source": "hn"}],
         confidence="high"
     )
     db_session.add(finding)
     db_session.commit()
 
-    assert db_session.query(Finding).count() == 1
+    saved_f = db_session.query(Finding).first()
+    assert saved_f is not None
+    assert saved_f.pain_point == "Manual repetitive workflows without automation."
+    assert saved_f.action_plan == "Build a lightweight Chrome Extension to automate entry."
+
+def test_source_plugins_loading():
+    """Ensure all sources including DuckDuckGo, BetaList, Lobsters load properly."""
+    from app.pipeline.collect import load_source_plugins
+    plugins = load_source_plugins()
+    plugin_names = [p.name for p in plugins]
+    assert "hackernews" in plugin_names
+    assert "producthunt" in plugin_names
+    assert "betalist" in plugin_names
+    assert "lobsters" in plugin_names
+    assert "duckduckgo_search" in plugin_names
+

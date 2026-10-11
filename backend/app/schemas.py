@@ -31,6 +31,8 @@ class FindingSchema(BaseModel):
     summary: str
     kind: str = Field(default="startup")
     section: str = Field(default="new_startups")
+    pain_point: Optional[str] = Field(default=None, description="Concise 1-sentence customer/market pain point or friction")
+    action_plan: Optional[str] = Field(default=None, description="Concise 1-sentence what we can do / actionable solution or build idea")
     evidence: List[EvidenceItem] = Field(default_factory=list)
     confidence: str = Field(default="medium", description="high, medium, or low")
 
@@ -175,6 +177,8 @@ class FindingResponse(BaseModel):
     kind: str
     title: str
     summary: str
+    pain_point: Optional[str] = None
+    action_plan: Optional[str] = None
     evidence: List[EvidenceItem]
     confidence: str
     source_count: int

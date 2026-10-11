@@ -21,8 +21,19 @@ export const App: React.FC = () => {
               <Route path="/" element={<Navigate to="/sections/new_startups" replace />} />
               <Route path="/sections/:sectionName" element={<SectionPage />} />
               <Route path="/opportunities" element={<BestOpportunitiesPage />} />
+              <Route path="/best_opportunities" element={<Navigate to="/opportunities" replace />} />
               <Route path="/runs" element={<PreviousAnalysesPage />} />
+              <Route path="/previous_analyses" element={<Navigate to="/runs" replace />} />
               <Route path="/compare" element={<ComparePage />} />
+              {/* Alias for direct section URLs */}
+              <Route path="/new_startups" element={<Navigate to="/sections/new_startups" replace />} />
+              <Route path="/booming_products" element={<Navigate to="/sections/booming_products" replace />} />
+              <Route path="/pain_points" element={<Navigate to="/sections/pain_points" replace />} />
+              <Route path="/ai_opportunities" element={<Navigate to="/sections/ai_opportunities" replace />} />
+              <Route path="/emerging_trends" element={<Navigate to="/sections/emerging_trends" replace />} />
+              <Route path="/india_gaps" element={<Navigate to="/sections/india_gaps" replace />} />
+              <Route path="/deep_research" element={<Navigate to="/sections/deep_research" replace />} />
+              <Route path="*" element={<Navigate to="/sections/new_startups" replace />} />
             </Routes>
           </main>
         </div>

@@ -68,6 +68,8 @@ class Finding(Base):
     kind = Column(String, nullable=False)  # startup | product | pain_point | india_opportunity | trend | ai_opportunity
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
+    pain_point = Column(Text, nullable=True)  # Concise 1-sentence customer/market pain point
+    action_plan = Column(Text, nullable=True)  # Concise 1-sentence what we can do / actionable solution
     evidence = Column(JSON, nullable=False, default=list)  # list of {url, quote, source}
     confidence = Column(String, nullable=False, default="medium")  # high | medium | low
     source_count = Column(Integer, default=1, nullable=False)

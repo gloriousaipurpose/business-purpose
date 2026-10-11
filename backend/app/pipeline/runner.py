@@ -242,6 +242,9 @@ async def execute_run(
                     if not ent:
                         ent = get_or_create_entity(db=db, run_id=run.id, canonical_name=concept.name, category=sec)
                     
+                    fallback_pain = concept.supporting_quote[:120] if concept.supporting_quote else f"High operational friction and lack of modern solutions in {concept.name}."
+                    fallback_action = f"Build a focused micro-SaaS or API addressing core {concept.name} demand."
+                    
                     finding_row = Finding(
                         run_id=run.id,
                         entity_id=ent.id,
@@ -249,6 +252,8 @@ async def execute_run(
                         kind=concept.kind or "startup",
                         title=f"{concept.name}: {concept.one_line_description[:80]}",
                         summary=concept.one_line_description or concept.supporting_quote,
+                        pain_point=fallback_pain,
+                        action_plan=fallback_action,
                         evidence=[{"url": concept.source_url, "quote": concept.supporting_quote, "source": "Live Web Feed"}],
                         confidence="high",
                         source_count=1,
@@ -275,6 +280,8 @@ async def execute_run(
                     kind=f_schema.kind,
                     title=f_schema.title,
                     summary=f_schema.summary,
+                    pain_point=f_schema.pain_point or f"Market friction in {f_schema.canonical_name}.",
+                    action_plan=f_schema.action_plan or f"Build an automated, user-friendly solution for this space.",
                     evidence=[ev.model_dump() for ev in f_schema.evidence],
                     confidence=f_schema.confidence,
                     source_count=max(1, len(f_schema.evidence)),

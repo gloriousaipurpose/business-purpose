@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, ChevronDown, ChevronUp, Quote, Shield, Award } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp, Quote, Shield, Award, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Finding } from '../types';
 
 interface FindingCardProps {
@@ -43,9 +43,38 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onOpenScoreDe
         </div>
 
         {/* Summary text */}
-        <p className="text-[#a19dbf] text-xs leading-relaxed mb-4">
+        <p className="text-[#a19dbf] text-xs leading-relaxed mb-3.5">
           {finding.summary}
         </p>
+
+        {/* Concrete Pain Point & Action Plan Callouts */}
+        {(finding.pain_point || finding.action_plan) && (
+          <div className="space-y-2 mb-4">
+            {finding.pain_point && (
+              <div className="p-3 bg-[#24131e] border border-[#481c35] rounded-lg">
+                <div className="flex items-center gap-1.5 text-rose-300 text-[11px] font-semibold mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span>The Pain Point</span>
+                </div>
+                <p className="text-[#d8b4c6] text-xs leading-snug">
+                  {finding.pain_point}
+                </p>
+              </div>
+            )}
+
+            {finding.action_plan && (
+              <div className="p-3 bg-[#112423] border border-[#1b4841] rounded-lg">
+                <div className="flex items-center gap-1.5 text-emerald-300 text-[11px] font-semibold mb-1">
+                  <Lightbulb className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>What We Can Do (Action Plan)</span>
+                </div>
+                <p className="text-[#a7d9cd] text-xs leading-snug">
+                  {finding.action_plan}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Evidence Sources */}
         {finding.evidence && finding.evidence.length > 0 && (

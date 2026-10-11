@@ -12,6 +12,9 @@ from app.sources.reddit import RedditSource
 from app.sources.googletrends import GoogleTrendsSource
 from app.sources.github_trending import GitHubTrendingSource
 from app.sources.rss_sources import RSSSourcesPlugin
+from app.sources.betalist import BetaListSource
+from app.sources.lobsters import LobstersSource
+from app.sources.duckduckgo_source import DuckDuckGoSource
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,12 @@ def load_source_plugins() -> List[Source]:
                     plugins.append(HackerNewsSource())
                 elif stype == "producthunt":
                     plugins.append(ProductHuntSource())
+                elif stype == "betalist":
+                    plugins.append(BetaListSource())
+                elif stype == "lobsters":
+                    plugins.append(LobstersSource())
+                elif stype == "duckduckgo_search":
+                    plugins.append(DuckDuckGoSource())
                 elif stype == "reddit":
                     plugins.append(RedditSource(subreddits=item.get("subreddits")))
                 elif stype == "googletrends":
@@ -47,6 +56,9 @@ def load_source_plugins() -> List[Source]:
         plugins = [
             HackerNewsSource(),
             ProductHuntSource(),
+            BetaListSource(),
+            LobstersSource(),
+            DuckDuckGoSource(),
             RedditSource(),
             GoogleTrendsSource(),
             GitHubTrendingSource(),

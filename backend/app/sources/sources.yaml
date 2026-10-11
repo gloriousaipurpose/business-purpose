@@ -2,9 +2,23 @@ sources:
   - name: hackernews
     enabled: true
     type: hackernews
+
   - name: producthunt
     enabled: true
     type: producthunt
+
+  - name: betalist
+    enabled: true
+    type: betalist
+
+  - name: lobsters
+    enabled: true
+    type: lobsters
+
+  - name: duckduckgo_search
+    enabled: true
+    type: duckduckgo_search
+
   - name: reddit
     enabled: true
     type: reddit
@@ -16,16 +30,23 @@ sources:
       - india
       - IndiaStartups
       - smallbusiness
+
   - name: googletrends
     enabled: true
     type: googletrends
+
   - name: github_trending
     enabled: true
     type: github_trending
+
   - name: rss_sources
     enabled: true
     type: rss_sources
     feeds:
+      - name: TechCrunch Startups
+        url: https://techcrunch.com/category/startups/feed/
+      - name: VentureBeat AI
+        url: https://venturebeat.com/category/ai/feed/
       - name: Inc42
         url: https://inc42.com/feed/
       - name: Entrackr
@@ -38,3 +59,9 @@ sources:
         url: https://blog.ycombinator.com/rss/
       - name: Indie Hackers
         url: https://www.indiehackers.com/feed.xml
+      - name: Lenny's Newsletter
+        url: https://www.lennysnewsletter.com/feed
+      - name: Dev.to ShowDev
+        url: https://dev.to/feed/tag/showdev
+      - name: Rest of World
+        url: https://restofworld.org/feed/latest/

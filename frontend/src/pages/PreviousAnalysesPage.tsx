@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Clock, ArrowRight, CheckCircle, RefreshCw, Timer } from 'lucide-react';
+import { 
+  Clock, 
+  ArrowRight, 
+  CheckCircle, 
+  RefreshCw, 
+  Timer, 
+  Filter, 
+  Search, 
+  X,
+  Layers
+} from 'lucide-react';
 import { Run } from '../types';
 import { useRun } from '../context/RunContext';
 
@@ -10,6 +20,11 @@ export const PreviousAnalysesPage: React.FC = () => {
   const navigate = useNavigate();
   const { activeRunId } = useRun();
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([]);
+
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'automatic' | 'manual'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'running' | 'failed'>('all');
 
   const { data: runs = [], isLoading, refetch } = useQuery({
     queryKey: ['previousRuns'],
@@ -50,17 +65,49 @@ export const PreviousAnalysesPage: React.FC = () => {
     return `${m}m ${s}s`;
   };
 
+  const filteredRuns = useMemo(() => {
+    let list = [...runs];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((r: Run) => {
+        const sumMatch = r.summary_text?.toLowerCase().includes(q);
+        const trendsMatch = r.key_trends?.some((t) => t.toLowerCase().includes(q));
+        const idMatch = String(r.id).includes(q);
+        return sumMatch || trendsMatch || idMatch;
+      });
+    }
+
+    if (typeFilter !== 'all') {
+      list = list.filter((r: Run) => r.run_type === typeFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      list = list.filter((r: Run) => r.status === statusFilter);
+    }
+
+    return list;
+  }, [runs, searchQuery, typeFilter, statusFilter]);
+
+  const hasActiveFilters = searchQuery.trim() !== '' || typeFilter !== 'all' || statusFilter !== 'all';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-5 rounded-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-5 rounded-xl shadow-lg shadow-black/20">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#29253b] text-purple-300 rounded-lg">
+          <div className="p-2.5 bg-[#29253b] text-purple-300 rounded-lg border border-[#3b3754]">
             <Clock className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-white tracking-tight">Previous Analyses Timeline</h1>
-            <p className="text-xs text-[#7e7b99]">Append-only history of every manual & automatic run</p>
+            <p className="text-xs text-[#7e7b99]">Append-only audit trail of every 5-hour automatic and manual intelligence scan</p>
           </div>
         </div>
 
@@ -80,9 +127,9 @@ export const PreviousAnalysesPage: React.FC = () => {
           <button
             onClick={handleCompare}
             disabled={selectedRunIds.length < 2}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-xs transition-colors ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-xs transition-colors shadow-sm ${
               selectedRunIds.length >= 2
-                ? 'bg-[#29253b] hover:bg-[#322d48] text-purple-200 border border-[#3b3754]'
+                ? 'bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border border-purple-500/50'
                 : 'bg-[#13111e] text-[#7e7b99] cursor-not-allowed border border-[#29253b]'
             }`}
           >
@@ -92,12 +139,91 @@ export const PreviousAnalysesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Filter Section */}
+      <div className="bg-[#181623] border border-[#29253b] p-4 rounded-xl space-y-3 shadow-md">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Box */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#7e7b99] absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search run summary text, key trends, or run ID..."
+              className="w-full bg-[#13111e] border border-[#29253b] text-xs text-white pl-9 pr-8 py-2 rounded-lg focus:outline-none focus:border-purple-400 placeholder-[#585570]"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2.5 text-[#7e7b99] hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-medium text-[#7e7b99] flex items-center gap-1">
+              <Filter className="w-3 h-3" />
+              <span>Type:</span>
+            </span>
+            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px]">
+              {(['all', 'automatic', 'manual'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-2.5 py-0.5 rounded capitalize transition-colors ${
+                    typeFilter === t
+                      ? 'bg-purple-600/30 text-purple-200 font-semibold border border-purple-500/30'
+                      : 'text-[#7e7b99] hover:text-[#c5c2df]'
+                  }`}
+                >
+                  {t === 'all' ? 'All Types' : t}
+                </button>
+              ))}
+            </div>
+
+            <span className="text-[11px] font-medium text-[#7e7b99] ml-2">Status:</span>
+            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px]">
+              {(['all', 'completed', 'running', 'failed'] as const).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-2.5 py-0.5 rounded capitalize transition-colors ${
+                    statusFilter === st
+                      ? 'bg-purple-600/30 text-purple-200 font-semibold border border-purple-500/30'
+                      : 'text-[#7e7b99] hover:text-[#c5c2df]'
+                  }`}
+                >
+                  {st === 'all' ? 'All' : st}
+                </button>
+              ))}
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="flex items-center gap-1 text-[11px] text-rose-300 hover:text-rose-200 bg-rose-950/40 border border-rose-800/40 px-2 py-0.5 rounded transition-colors ml-2"
+              >
+                <X className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="text-[11px] text-[#7e7b99] pt-2 border-t border-[#232034] flex items-center justify-between">
+          <span>Showing <strong className="text-purple-300">{filteredRuns.length}</strong> of <strong className="text-slate-300">{runs.length}</strong> recorded runs</span>
+          <span className="text-[10px] text-[#585570]">Select checkboxes to compare 2 or 3 runs side-by-side</span>
+        </div>
+      </div>
+
       {/* Timeline List */}
       {isLoading ? (
-        <div className="text-center py-16 text-purple-300 text-xs">Loading Run History...</div>
-      ) : runs.length > 0 ? (
+        <div className="text-center py-20 text-purple-300 text-xs">Loading Run History...</div>
+      ) : filteredRuns.length > 0 ? (
         <div className="space-y-3">
-          {runs.map((run: Run) => {
+          {filteredRuns.map((run: Run) => {
             const isSelected = selectedRunIds.includes(run.id);
             const duration = getRunDuration(run.started_at, run.finished_at);
             const formattedDate = new Date(run.started_at).toLocaleString('en-IN', {
@@ -149,7 +275,7 @@ export const PreviousAnalysesPage: React.FC = () => {
                       )}
                     </div>
 
-                    <p className="text-xs text-[#a19dbf] mt-1 line-clamp-2">
+                    <p className="text-xs text-[#a19dbf] mt-1.5 line-clamp-2">
                       {run.summary_text || 'Completed intelligence run.'}
                     </p>
 
@@ -158,7 +284,7 @@ export const PreviousAnalysesPage: React.FC = () => {
                       {run.sources_checked && run.sources_checked.map((s, idx) => (
                         <span key={idx} className="text-[10px] bg-[#13111e] border border-[#29253b] text-[#a19dbf] px-2 py-0.5 rounded flex items-center gap-1">
                           <CheckCircle className="w-3 h-3 text-purple-300" />
-                          <span className="capitalize">{s.name} ({s.items_count})</span>
+                          <span className="capitalize">{s.name.replace(/_/g, ' ')} ({s.items_count})</span>
                         </span>
                       ))}
                     </div>
@@ -179,7 +305,7 @@ export const PreviousAnalysesPage: React.FC = () => {
         </div>
       ) : (
         <div className="bg-[#181623] border border-[#29253b] rounded-xl p-12 text-center text-[#7e7b99] text-xs">
-          No previous analysis runs found.
+          No analysis runs found matching current filter criteria.
         </div>
       )}
     </div>

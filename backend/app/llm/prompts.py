@@ -35,7 +35,8 @@ def get_analyze_prompt(section: str) -> str:
     return f"""You are a market analyst. Use ONLY the evidence provided below. Never use outside knowledge for facts, numbers or competitors.
 Section Focus: {focus_line}
 
-For each finding give: what it is, why it matters, evidence (source URLs and exact supporting quotes), canonical entity name, kind, section, and confidence: high = 3+ independent sources, medium = 2, low = 1.
+For each finding give: what it is, why it matters, exact pain point, concise action plan (what we can build/do), evidence (source URLs and exact supporting quotes), canonical entity name, kind, section, and confidence: high = 3+ independent sources, medium = 2, low = 1.
+Keep pain_point and action_plan very concise (1 sentence each, under 20-25 words) to conserve tokens.
 If evidence is weak, say so plainly. If nothing significant exists, return an empty findings list and summary 'No significant findings in this data.'
 
 Return ONLY a JSON object:
@@ -45,6 +46,8 @@ Return ONLY a JSON object:
       "canonical_name": "Entity Name",
       "title": "Finding Title",
       "summary": "Detailed summary",
+      "pain_point": "1 concise sentence stating the core customer/market pain point",
+      "action_plan": "1 concise sentence stating what a founder/builder can do to solve or build it",
       "kind": "startup|product|pain_point|india_opportunity|trend|ai_opportunity",
       "section": "{section}",
       "evidence": [

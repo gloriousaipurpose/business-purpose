@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.db import Base, engine, SessionLocal
+from app.db import Base, engine, SessionLocal, ensure_schema_columns
 from app.models import Run
 from app.scheduler import start_scheduler
 from app.api.runs import router as runs_router
@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
     # Startup actions
     logger.info("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
+    ensure_schema_columns()
     
     logger.info("Cleaning up stuck runs from previous sessions...")
     cleanup_stuck_runs()

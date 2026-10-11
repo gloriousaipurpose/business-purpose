@@ -57,6 +57,8 @@ def get_latest_section_findings(name: str, db: Session = Depends(get_db)):
             "kind": f.kind,
             "title": f.title,
             "summary": f.summary,
+            "pain_point": getattr(f, "pain_point", None),
+            "action_plan": getattr(f, "action_plan", None),
             "evidence": f.evidence,
             "confidence": f.confidence,
             "score": latest_score,
@@ -64,9 +66,18 @@ def get_latest_section_findings(name: str, db: Session = Depends(get_db)):
             "created_at": f.created_at
         })
 
+    # Extract section-specific analyst summary if available
+    section_summary = latest_run.summary_text
+    if latest_run.summary_text:
+        prefix = f"[{name.upper()}]:"
+        for line in latest_run.summary_text.split("\n"):
+            if line.strip().startswith(prefix):
+                section_summary = line.strip()[len(prefix):].strip()
+                break
+
     return {
         "section": name,
         "last_analyzed_at": latest_run.finished_at or latest_run.started_at,
         "findings": result_findings,
-        "summary": latest_run.summary_text
+        "summary": section_summary
     }

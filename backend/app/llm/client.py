@@ -14,14 +14,15 @@ INPUT_TOKEN_COST_PER_1K = 0.00059
 OUTPUT_TOKEN_COST_PER_1K = 0.00079
 
 AVAILABLE_GROQ_MODELS = [
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3.8-27b"
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
 ]
 
 class LLMClient:
     def __init__(self):
-        self.model = settings.GROQ_MODEL or "openai/gpt-oss-120b"
+        self.model = settings.GROQ_MODEL or "llama-3.3-70b-versatile"
         self._keys: List[str] = []
         self._clients: List[object] = []
         self._current_key_idx: int = 0
