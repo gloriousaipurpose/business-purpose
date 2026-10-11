@@ -32,7 +32,7 @@ This guide explains how to deploy both the **Python Backend** and **React Fronte
 
 4. Scroll down to **Environment Variables** and add:
    - `GROQ_API_KEY` = *(Your Groq API key)*
-   - `GROQ_MODEL` = `llama-3.3-70b-versatile`
+   - `GROQ_MODEL` = `openai/gpt-oss-120b`
    - `DATABASE_URL` = *(Your PostgreSQL URL from Option A, OR `sqlite:///./radar.db` to use the committed SQLite database)*
    - `RUN_INTERVAL_HOURS` = `5`
    - `TIMEZONE` = `Asia/Kolkata`
