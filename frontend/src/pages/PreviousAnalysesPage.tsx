@@ -98,21 +98,21 @@ export const PreviousAnalysesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-5 rounded-xl shadow-lg shadow-black/20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-4 sm:p-5 rounded-xl shadow-lg shadow-black/20">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-[#29253b] text-purple-300 rounded-lg border border-[#3b3754]">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-white tracking-tight">Previous Analyses Timeline</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight">Previous Analyses Timeline</h1>
             <p className="text-xs text-[#7e7b99]">Append-only audit trail of every 5-hour automatic and manual intelligence scan</p>
           </div>
         </div>
 
         {/* Compare & Refresh Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => refetch()}
             className="p-2 bg-[#181623] border border-[#29253b] text-[#7e7b99] hover:text-white rounded-lg transition-colors"
@@ -122,22 +122,23 @@ export const PreviousAnalysesPage: React.FC = () => {
           </button>
 
           <span className="text-xs text-[#7e7b99]">
-            Selected: <strong className="text-purple-300">{selectedRunIds.length}/3</strong> runs
+            Selected: <strong className="text-purple-300">{selectedRunIds.length}/3</strong>
           </span>
           <button
             onClick={handleCompare}
             disabled={selectedRunIds.length < 2}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-xs transition-colors shadow-sm ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg font-medium text-xs transition-colors shadow-sm ${
               selectedRunIds.length >= 2
                 ? 'bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border border-purple-500/50'
                 : 'bg-[#13111e] text-[#7e7b99] cursor-not-allowed border border-[#29253b]'
             }`}
           >
-            <span>Compare Selected Runs</span>
+            <span>Compare Selected</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
+
 
       {/* Filter Section */}
       <div className="bg-[#181623] border border-[#29253b] p-4 rounded-xl space-y-3 shadow-md">

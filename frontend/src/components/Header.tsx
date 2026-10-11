@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Bell, Pause, Play, Clock, X, Radio, BellRing, Sparkles, Timer } from 'lucide-react';
+import { Bell, Pause, Play, Clock, X, Radio, BellRing, Sparkles, Timer, Menu, Radar } from 'lucide-react';
 import { NotificationItem } from '../types';
 import { useRun } from '../context/RunContext';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onToggleMobileMenu?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
+
   const queryClient = useQueryClient();
   const [showNotifications, setShowNotifications] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -116,8 +121,28 @@ export const Header: React.FC = () => {
   const isPaused = schedulerStatus?.is_paused ?? false;
 
   return (
-    <header className="h-14 border-b border-[#29253b] bg-[#13111e] px-6 flex items-center justify-between sticky top-0 z-40 select-none">
-      <div className="flex items-center gap-3 text-xs">
+    <header className="h-14 border-b border-[#29253b] bg-[#13111e] px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none">
+
+      <div className="flex items-center gap-2 sm:gap-3 text-xs">
+        {/* Mobile Hamburger Menu Button */}
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            className="md:hidden p-2 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf] hover:text-white"
+            title="Open navigation menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Mobile Brand Title */}
+        <div className="flex md:hidden items-center gap-1.5 mr-1">
+          <div className="p-1 rounded bg-[#29253b] text-purple-300">
+            <Radar className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-semibold text-xs text-white">Radar</span>
+        </div>
+
         {/* Active Cloud Scan Banner / Button in Top Header */}
         {activeRunId ? (
           <button
@@ -125,20 +150,20 @@ export const Header: React.FC = () => {
               setIsWidgetVisible(!isWidgetVisible);
               setIsWidgetMinimized(false);
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/40 border border-purple-500/50 text-purple-200 text-xs font-semibold hover:bg-purple-900/60 transition-all animate-pulse"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-purple-900/40 border border-purple-500/50 text-purple-200 text-xs font-semibold hover:bg-purple-900/60 transition-all animate-pulse"
             title="Click to toggle detailed progress panel"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-300 animate-spin" />
-            <span>
-              Cloud Scan #{activeRunId}: {runStatusData?.progress_percentage || 10}%
+            <span className="truncate max-w-[110px] sm:max-w-none">
+              Scan #{activeRunId}: {runStatusData?.progress_percentage || 10}%
             </span>
-            <span className="font-mono text-purple-300 border-l border-purple-500/40 pl-2 flex items-center gap-1">
+            <span className="font-mono text-purple-300 border-l border-purple-500/40 pl-1.5 sm:pl-2 hidden xs:flex items-center gap-1">
               <Timer className="w-3 h-3 text-purple-400" />
               {formatDuration(elapsedSeconds)}
             </span>
           </button>
         ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf]">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf]">
             <Clock className="w-3.5 h-3.5 text-purple-300" />
             <span>Next Auto Scan:</span>
             <span className="font-medium text-white">
@@ -156,23 +181,24 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => (isPaused ? resumeMutation.mutate() : pauseMutation.mutate())}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#181623] border border-[#29253b] text-[#a19dbf] hover:text-white hover:border-[#3b3754] transition-colors"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium bg-[#181623] border border-[#29253b] text-[#a19dbf] hover:text-white hover:border-[#3b3754] transition-colors"
+          title={isPaused ? 'Resume 5-hour automatic scanning' : 'Pause 5-hour automatic scanning'}
         >
           {isPaused ? (
             <Play className="w-3.5 h-3.5 text-purple-300" />
           ) : (
             <Pause className="w-3.5 h-3.5 text-purple-300" />
           )}
-          <span>{isPaused ? 'Resume Schedule' : 'Pause Schedule'}</span>
+          <span className="hidden sm:inline">{isPaused ? 'Resume Schedule' : 'Pause Schedule'}</span>
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Browser Notification Permission Button */}
         {notificationPermission !== 'granted' && (
           <button
             onClick={requestNotificationPermission}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#29253b] border border-[#3b3754] text-purple-200 text-xs font-medium hover:bg-[#322d48] transition-colors"
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#29253b] border border-[#3b3754] text-purple-200 text-xs font-medium hover:bg-[#322d48] transition-colors"
           >
             <BellRing className="w-3.5 h-3.5 text-purple-300" />
             <span>Enable Push Notifications</span>
@@ -180,7 +206,7 @@ export const Header: React.FC = () => {
         )}
 
         {/* Collector Status Pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf] text-xs">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#181623] border border-[#29253b] text-[#a19dbf] text-xs">
           <Radio className="w-3.5 h-3.5 text-purple-400" />
           <span>Active</span>
         </div>
@@ -201,7 +227,7 @@ export const Header: React.FC = () => {
 
           {/* Notifications Drawer */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-[#181623] border border-[#29253b] rounded-xl shadow-2xl p-4 z-50">
+            <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-[#181623] border border-[#29253b] rounded-xl shadow-2xl p-4 z-50">
               <div className="flex items-center justify-between pb-3 border-b border-[#29253b]">
                 <h3 className="font-semibold text-xs text-white flex items-center gap-2">
                   <Bell className="w-3.5 h-3.5 text-purple-300" /> Notifications & Alerts
@@ -213,6 +239,7 @@ export const Header: React.FC = () => {
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+
 
               <div className="mt-3 max-h-72 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
                 {!notifications || notifications.length === 0 ? (

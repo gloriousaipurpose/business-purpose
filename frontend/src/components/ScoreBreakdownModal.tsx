@@ -38,7 +38,8 @@ export const ScoreBreakdownModal: React.FC<ScoreBreakdownModalProps> = ({ entity
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex justify-end">
-      <div className="w-full max-w-xl bg-[#0f0e17] border-l border-[#29253b] h-full overflow-y-auto p-6 space-y-6 scrollbar-thin">
+      <div className="w-full max-w-xl bg-[#0f0e17] border-l border-[#29253b] h-full overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 scrollbar-thin">
+
         {/* Header */}
         <div className="flex items-start justify-between border-b border-[#29253b] pb-4">
           <div>

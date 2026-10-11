@@ -11,7 +11,8 @@ import {
   Target,
   Award,
   Clock,
-  Radar
+  Radar,
+  X
 } from 'lucide-react';
 
 export const SECTIONS = [
@@ -27,18 +28,33 @@ export const SECTIONS = [
   { id: 'previous_analyses', label: 'Previous Analyses', icon: Clock, path: '/runs' }
 ];
 
-export const Sidebar: React.FC = () => {
-  return (
-    <aside className="w-64 bg-[#13111e] border-r border-[#29253b] flex flex-col h-screen sticky top-0 z-30 select-none">
-      {/* Minimal Brand Header */}
-      <div className="p-5 border-b border-[#29253b] flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-[#29253b] text-purple-300">
-          <Radar className="w-5 h-5" />
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const content = (
+    <div className="flex flex-col h-full bg-[#13111e]">
+      {/* Brand Header */}
+      <div className="p-5 border-b border-[#29253b] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-[#29253b] text-purple-300">
+            <Radar className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="font-semibold text-sm tracking-tight text-white">Business Radar</h1>
+            <p className="text-[11px] text-purple-300/70">Intelligence System</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-semibold text-sm tracking-tight text-white">Business Radar</h1>
-          <p className="text-[11px] text-purple-300/70">Intelligence System</p>
-        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-1.5 rounded-lg text-[#7e7b99] hover:text-white hover:bg-[#29253b]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Navigation List */}
@@ -52,6 +68,7 @@ export const Sidebar: React.FC = () => {
             <NavLink
               key={sec.id}
               to={sec.path}
+              onClick={() => onClose?.()}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                   isActive
@@ -72,6 +89,31 @@ export const Sidebar: React.FC = () => {
         <span>Groq Intelligence</span>
         <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Fixed Sidebar */}
+      <aside className="hidden md:flex w-64 border-r border-[#29253b] flex-col h-screen sticky top-0 z-30 select-none shrink-0">
+        {content}
+      </aside>
+
+      {/* Mobile Slide-Over Drawer */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
+            onClick={onClose}
+          />
+          {/* Drawer Sheet */}
+          <aside className="fixed inset-y-0 left-0 w-72 border-r border-[#29253b] flex flex-col h-full z-50 select-none shadow-2xl animate-in slide-in-from-left duration-200">
+            {content}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };
+

@@ -146,11 +146,11 @@ export const SectionPage: React.FC = () => {
   }, [data?.findings]);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-5 rounded-xl shadow-lg shadow-black/20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#181623] border border-[#29253b] p-4 sm:p-5 rounded-xl shadow-lg shadow-black/20">
         <div>
-          <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight flex items-center gap-2">
             <span>{currentSectionConfig.label}</span>
           </h1>
           <div className="flex items-center gap-2 text-xs text-[#7e7b99] mt-1">
@@ -171,7 +171,7 @@ export const SectionPage: React.FC = () => {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => refetch()}
             className="p-2 bg-[#181623] border border-[#29253b] text-[#7e7b99] hover:text-white rounded-lg transition-colors"
@@ -181,14 +181,14 @@ export const SectionPage: React.FC = () => {
           </button>
 
           {sectionName === 'deep_research' && (
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-initial">
               <Search className="w-3.5 h-3.5 text-[#7e7b99] absolute left-3 top-2.5" />
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="Enter Deep Research Topic..."
-                className="bg-[#13111e] border border-[#29253b] text-xs text-white pl-8 pr-3 py-2 rounded-lg focus:outline-none focus:border-purple-400 w-60"
+                className="w-full sm:w-60 bg-[#13111e] border border-[#29253b] text-xs text-white pl-8 pr-3 py-2 rounded-lg focus:outline-none focus:border-purple-400"
               />
             </div>
           )}
@@ -196,7 +196,7 @@ export const SectionPage: React.FC = () => {
           <button
             onClick={handleRunNow}
             disabled={isRunActive}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border font-medium text-xs transition-colors shadow-sm ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border font-medium text-xs transition-colors shadow-sm ${
               isRunActive
                 ? 'bg-[#13111e] text-[#7e7b99] border-[#29253b] cursor-not-allowed'
                 : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 border-purple-500/40 hover:border-purple-500/60'
@@ -216,6 +216,7 @@ export const SectionPage: React.FC = () => {
           </button>
         </div>
       </div>
+
 
       {/* Analyst Summary Note */}
       {data?.summary && (
@@ -279,12 +280,12 @@ export const SectionPage: React.FC = () => {
             </span>
 
             {/* Confidence Filter Pills */}
-            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px]">
+            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px] overflow-x-auto max-w-full">
               {(['all', 'high', 'medium', 'low'] as const).map((conf) => (
                 <button
                   key={conf}
                   onClick={() => setConfidenceFilter(conf)}
-                  className={`px-2.5 py-0.5 rounded capitalize transition-colors ${
+                  className={`px-2.5 py-0.5 rounded capitalize transition-colors shrink-0 ${
                     confidenceFilter === conf
                       ? 'bg-purple-600/30 text-purple-200 font-semibold border border-purple-500/30'
                       : 'text-[#7e7b99] hover:text-[#c5c2df]'
@@ -296,7 +297,8 @@ export const SectionPage: React.FC = () => {
             </div>
 
             {/* Min Score Filter Pills */}
-            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px]">
+            <div className="flex items-center bg-[#13111e] border border-[#29253b] rounded-lg p-0.5 text-[11px] overflow-x-auto max-w-full">
+
               {[
                 { label: 'All Scores', value: 'all' },
                 { label: '80+ Top', value: '80' },

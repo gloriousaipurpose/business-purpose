@@ -77,10 +77,10 @@ export const LiveProgressModal: React.FC = () => {
   // Minimized Compact Pill Floating Badge with Live Timer
   if (isWidgetMinimized) {
     return (
-      <div className="fixed top-16 right-6 z-50 pointer-events-auto">
+      <div className="fixed top-16 right-3 sm:right-6 z-50 pointer-events-auto">
         <div
           onClick={() => setIsWidgetMinimized(false)}
-          className="bg-[#181623] border border-purple-500/40 px-4 py-2 rounded-xl shadow-2xl flex items-center gap-3 cursor-pointer hover:bg-[#201d2e] transition-all transform hover:scale-105"
+          className="bg-[#181623] border border-purple-500/40 px-3 sm:px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:bg-[#201d2e] transition-all transform hover:scale-105"
         >
           {isFinished ? (
             <CheckCircle className="w-4 h-4 text-emerald-400" />
@@ -90,7 +90,7 @@ export const LiveProgressModal: React.FC = () => {
           <div className="text-xs flex items-center gap-2">
             <span className="text-white font-medium">Scan #{activeRunId}: </span>
             <span className="text-purple-300 font-semibold">{isFinished ? 'Done' : `${progressPct}%`}</span>
-            <span className="text-[#7e7b99] border-l border-[#29253b] pl-2 flex items-center gap-1 font-mono text-[11px]">
+            <span className="text-[#7e7b99] border-l border-[#29253b] pl-2 hidden xs:flex items-center gap-1 font-mono text-[11px]">
               <Timer className="w-3 h-3 text-purple-400" /> {formatDuration(elapsedSeconds)}
             </span>
           </div>
@@ -102,7 +102,8 @@ export const LiveProgressModal: React.FC = () => {
 
   // Non-Blocking Floating Top-Right Widget Card with Live Elapsed Timer
   return (
-    <div className="fixed top-16 right-6 z-50 pointer-events-auto w-96 bg-[#181623] border border-[#3b3754] rounded-xl p-4 shadow-2xl space-y-4 select-none animate-in fade-in slide-in-from-top-2">
+    <div className="fixed top-16 right-3 left-3 sm:left-auto sm:right-6 sm:w-96 max-w-full z-50 pointer-events-auto bg-[#181623] border border-[#3b3754] rounded-xl p-4 shadow-2xl space-y-4 select-none animate-in fade-in slide-in-from-top-2">
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#29253b] pb-2.5">
         <div className="flex items-center gap-2.5">

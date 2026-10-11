@@ -11,20 +11,20 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onOpenScoreDe
   const [expandedQuotes, setExpandedQuotes] = useState(false);
 
   return (
-    <div className="bg-[#181623] border border-[#29253b] hover:border-[#3b3754] rounded-xl p-5 transition-colors flex flex-col justify-between">
+    <div className="bg-[#181623] border border-[#29253b] hover:border-[#3b3754] rounded-xl p-4 sm:p-5 transition-colors flex flex-col justify-between">
       <div>
         {/* Card Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-3 mb-3">
           <div>
             <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider bg-[#29253b] px-2 py-0.5 rounded border border-[#3b3754]">
               {finding.kind || finding.section}
             </span>
-            <h3 className="text-base font-semibold text-white mt-2 tracking-tight">
+            <h3 className="text-sm sm:text-base font-semibold text-white mt-1.5 sm:mt-2 tracking-tight">
               {finding.title}
             </h3>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {finding.score !== undefined && finding.score !== null && (
               <button
                 onClick={() => finding.entity_id && onOpenScoreDetail?.(finding.entity_id)}
@@ -41,6 +41,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onOpenScoreDe
             </span>
           </div>
         </div>
+
 
         {/* Summary text */}
         <p className="text-[#a19dbf] text-xs leading-relaxed mb-3.5">

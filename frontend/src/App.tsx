@@ -10,13 +10,16 @@ import { ComparePage } from './pages/ComparePage';
 import { RunProvider } from './context/RunContext';
 
 export const App: React.FC = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
   return (
     <RunProvider>
       <div className="flex h-screen overflow-hidden bg-[#0b0f19] relative">
-        <Sidebar />
+        <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          <Header />
+          <Header onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} />
           <main className="flex-1 pb-16">
+
             <Routes>
               <Route path="/" element={<Navigate to="/sections/new_startups" replace />} />
               <Route path="/sections/:sectionName" element={<SectionPage />} />

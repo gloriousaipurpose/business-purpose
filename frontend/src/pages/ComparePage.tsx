@@ -35,15 +35,15 @@ export const ComparePage: React.FC = () => {
   const { comparison, runs_meta } = data;
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between bg-[#181623] border border-[#29253b] p-5 rounded-xl">
+      <div className="flex items-center justify-between bg-[#181623] border border-[#29253b] p-4 sm:p-5 rounded-xl">
         <div className="flex items-center gap-3">
           <Link to="/runs" className="p-2 rounded-lg bg-[#13111e] border border-[#29253b] text-[#7e7b99] hover:text-white">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight flex items-center gap-2">
               <GitCompare className="w-5 h-5 text-purple-300" /> Run Comparison Diff
             </h1>
             <p className="text-xs text-[#7e7b99] mt-0.5">Comparing Runs: {runs_meta.map((r) => `#${r.id}`).join(' vs ')}</p>
@@ -52,7 +52,8 @@ export const ComparePage: React.FC = () => {
       </div>
 
       {/* 4 Column Matrix */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
         {/* 1. New Opportunities */}
         <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-[#29253b] pb-2.5">
