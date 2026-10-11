@@ -18,12 +18,35 @@ async def background_run_task(run_id: int, sections: List[str], topic: Optional[
         finally:
             db.close()
 
+from datetime import datetime, timedelta
+
+@router.post("/{run_id}/cancel", response_model=dict)
+def cancel_run(run_id: int, db: Session = Depends(get_db)):
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    run.status = "failed"
+    run.summary_text = "Analysis run stopped by user."
+    run.finished_at = datetime.utcnow()
+    db.commit()
+    return {"message": f"Run #{run_id} marked as canceled.", "status": "failed"}
+
 @router.post("", response_model=dict)
 async def start_manual_run(
     req: RunCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    # Auto-cleanup any phantom runs that have been 'running' for > 3 minutes
+    cutoff = datetime.utcnow() - timedelta(minutes=3)
+    stuck_runs = db.query(Run).filter(Run.status == "running", Run.started_at < cutoff).all()
+    if stuck_runs:
+        for sr in stuck_runs:
+            sr.status = "failed"
+            sr.summary_text = "Run timed out."
+            sr.finished_at = datetime.utcnow()
+        db.commit()
+
     if run_lock.locked():
         raise HTTPException(status_code=409, detail="A pipeline analysis run is already in progress.")
 
@@ -51,6 +74,16 @@ def get_runs(
     limit: int = 50,
     db: Session = Depends(get_db)
 ):
+    # Auto-cleanup phantom runs older than 3 minutes on status check
+    cutoff = datetime.utcnow() - timedelta(minutes=3)
+    stuck_runs = db.query(Run).filter(Run.status == "running", Run.started_at < cutoff).all()
+    if stuck_runs:
+        for sr in stuck_runs:
+            sr.status = "failed"
+            sr.summary_text = "Analysis timed out after 3 minutes."
+            sr.finished_at = datetime.utcnow()
+        db.commit()
+
     query = db.query(Run)
     if run_type:
         query = query.filter(Run.run_type == run_type)
@@ -59,6 +92,7 @@ def get_runs(
 
     runs = query.order_by(Run.started_at.desc()).limit(limit).all()
     return runs
+
 
 @router.get("/{run_id}", response_model=dict)
 def get_run_details(run_id: int, db: Session = Depends(get_db)):

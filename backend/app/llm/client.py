@@ -101,7 +101,7 @@ class LLMClient:
             {"role": "user", "content": prompt}
         ]
 
-        total_attempts_allowed = max_retries * max(1, len(self._keys)) * len(AVAILABLE_GROQ_MODELS)
+        total_attempts_allowed = min(5, max(2, len(AVAILABLE_GROQ_MODELS)))
 
         while attempts < total_attempts_allowed:
             attempts += 1
@@ -109,8 +109,8 @@ class LLMClient:
             model_name = self.get_active_model()
 
             try:
-                # Small 1-second pacer delay
-                await asyncio.sleep(1.0)
+                # 0.5s pace delay
+                await asyncio.sleep(0.5)
 
                 response = await client.chat.completions.create(
                     model=model_name,
@@ -144,12 +144,14 @@ class LLMClient:
                 logger.warning(f"Groq attempt {attempts} (Model: {model_name}, Key #{key_idx + 1}) failed: {err_str}")
                 last_error = e
 
-                if "429" in err_str or "413" in err_str or "limit" in err_str.lower():
+                # Immediately rotate model on 404 (model not found) or rate limits
+                if "404" in err_str or "model_not_found" in err_str or "429" in err_str or "413" in err_str or "limit" in err_str.lower():
                     self._rotate_key_or_model()
-                    await asyncio.sleep(1.5)
-
-                messages.append({"role": "user", "content": f"Your previous output failed validation: {err_str}. Please correct and return strictly valid JSON matching the schema."})
+                    await asyncio.sleep(1.0)
+                else:
+                    await asyncio.sleep(1.0)
 
         raise RuntimeError(f"Failed to generate valid JSON from Groq after {attempts} attempts. Last error: {last_error}")
+
 
 llm_client = LLMClient()

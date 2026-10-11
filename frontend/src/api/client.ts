@@ -30,7 +30,13 @@ export const apiClient = {
     return res.data as { run_id: number; message: string; status: string };
   },
 
+  cancelRun: async (runId: number) => {
+    const res = await axios.post(`${API_BASE}/runs/${runId}/cancel`);
+    return res.data as { message: string; status: string };
+  },
+
   getRuns: async (run_type?: string, status?: string) => {
+
     const res = await axios.get(`${API_BASE}/runs`, { params: { run_type, status } });
     return res.data as Run[];
   },

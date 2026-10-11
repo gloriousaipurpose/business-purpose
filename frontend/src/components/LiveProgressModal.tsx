@@ -209,10 +209,27 @@ export const LiveProgressModal: React.FC = () => {
           <span>Scan Finished ({formatDuration(elapsedSeconds)}) — Refresh & View</span>
         </button>
       ) : (
-        <p className="text-[10px] text-[#7e7b99] text-center italic">
-          Click ✕ to hide widget while navigating. Scan runs in background.
-        </p>
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#29253b]">
+          <p className="text-[10px] text-[#7e7b99] italic">
+            Runs in background.
+          </p>
+          <button
+            onClick={async () => {
+              if (activeRunId) {
+                try {
+                  await apiClient.cancelRun(activeRunId);
+                } catch (e) {}
+                setActiveRunId(null);
+                queryClient.invalidateQueries();
+              }
+            }}
+            className="px-2.5 py-1 text-[11px] font-medium text-rose-300 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-950/70 border border-rose-800/40 rounded transition-colors"
+          >
+            Stop / Cancel Scan
+          </button>
+        </div>
       )}
+
     </div>
   );
 };
