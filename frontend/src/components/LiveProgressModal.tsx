@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, CheckCircle, AlertCircle, Sparkles, ChevronDown, ChevronUp, X, Check, Timer } from 'lucide-react';
 import { useRun } from '../context/RunContext';
+import { apiClient } from '../api/client';
 
 export const LiveProgressModal: React.FC = () => {
   const queryClient = useQueryClient();
