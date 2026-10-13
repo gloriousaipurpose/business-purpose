@@ -7,6 +7,7 @@ import { SectionPage } from './pages/SectionPage';
 import { BestOpportunitiesPage } from './pages/BestOpportunitiesPage';
 import { PreviousAnalysesPage } from './pages/PreviousAnalysesPage';
 import { ComparePage } from './pages/ComparePage';
+import { IdeaFinderPage } from './pages/IdeaFinderPage';
 import { RunProvider } from './context/RunContext';
 
 export const App: React.FC = () => {
@@ -28,6 +29,7 @@ export const App: React.FC = () => {
               <Route path="/runs" element={<PreviousAnalysesPage />} />
               <Route path="/previous_analyses" element={<Navigate to="/runs" replace />} />
               <Route path="/compare" element={<ComparePage />} />
+              <Route path="/idea-finder" element={<IdeaFinderPage />} />
               {/* Alias for direct section URLs */}
               <Route path="/new_startups" element={<Navigate to="/sections/new_startups" replace />} />
               <Route path="/booming_products" element={<Navigate to="/sections/booming_products" replace />} />

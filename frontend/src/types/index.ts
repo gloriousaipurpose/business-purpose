@@ -124,3 +124,67 @@ export interface CompareResult {
     repeating: CompareEntitySummary[];
   };
 }
+
+// ── Idea Finder ──────────────────────────────────────────────────────────────
+
+export interface IdeaScore {
+  score: number;
+  reason: string;
+}
+
+export interface IdeaFinderFinding {
+  pain_point: string;
+  who_suffers: string;
+  type: string;
+  evidence: { id: string; quote: string }[];
+  existing_solutions: { name: string; strength: string; weakness: string }[];
+  gap_status: 'open' | 'narrow' | 'closed';
+  idea: string;
+  target_user: string;
+  who_pays: string;
+  risks: string[];
+  cheapest_validation_test: string;
+  scores: {
+    pain_intensity: IdeaScore;
+    payment_evidence: IdeaScore;
+    competition_gap: IdeaScore;
+    reachability: IdeaScore;
+    defensibility: IdeaScore;
+    india_fit: IdeaScore;
+    timing: IdeaScore;
+  };
+  total_score: number;
+  confidence: 'low' | 'medium' | 'high';
+  change_vs_previous: string;
+}
+
+export interface IdeaFinderRun {
+  id: number;
+  niche: string;
+  niche_notes?: string;
+  target_market: string;
+  status: 'running' | 'completed' | 'failed';
+  result_json?: {
+    niche: string;
+    run_summary: string;
+    findings: IdeaFinderFinding[];
+    rejected_ideas: { idea: string; reason: string }[];
+    data_gaps: string;
+  };
+  error_text?: string;
+  started_at: string;
+  finished_at?: string;
+}
+
+export interface IdeaFinderRunSummary {
+  id: number;
+  niche: string;
+  niche_notes?: string;
+  target_market: string;
+  status: string;
+  findings_count: number;
+  run_summary: string;
+  started_at: string;
+  finished_at?: string;
+}
+

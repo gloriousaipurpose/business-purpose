@@ -13,6 +13,7 @@ from app.api.opportunities import router as opportunities_router
 from app.api.compare import router as compare_router
 from app.api.notifications import router as notifications_router
 from app.api.scheduler_api import router as scheduler_router
+from app.api.idea_finder import router as idea_finder_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -75,6 +76,7 @@ app.include_router(opportunities_router)
 app.include_router(compare_router)
 app.include_router(notifications_router)
 app.include_router(scheduler_router)
+app.include_router(idea_finder_router)
 
 @app.get("/health")
 def health_check():

@@ -117,3 +117,17 @@ class Notification(Base):
 
     run = relationship("Run", back_populates="notifications")
     entity = relationship("Entity", back_populates="notifications")
+
+
+class IdeaFinderRun(Base):
+    __tablename__ = "idea_finder_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    niche = Column(String, nullable=False, index=True)          # e.g. "e-commerce"
+    niche_notes = Column(Text, nullable=True)                   # optional extra context
+    target_market = Column(String, nullable=False, default="India")
+    status = Column(String, nullable=False, default="running")  # running | completed | failed
+    result_json = Column(JSON, nullable=True)                   # full LLM JSON output
+    error_text = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)

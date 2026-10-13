@@ -12,7 +12,8 @@ import {
   Award,
   Clock,
   Radar,
-  X
+  X,
+  Lightbulb
 } from 'lucide-react';
 
 export const SECTIONS = [
@@ -24,6 +25,7 @@ export const SECTIONS = [
   { id: 'emerging_trends', label: 'Emerging Trends', icon: LineChart, path: '/sections/emerging_trends' },
   { id: 'deep_research', label: 'Deep Research', icon: Search, path: '/sections/deep_research' },
   { id: 'india_gaps', label: 'India Market Gaps', icon: Target, path: '/sections/india_gaps' },
+  { id: 'idea_finder', label: 'Idea Finder 💡', icon: Lightbulb, path: '/idea-finder' },
   { id: 'best_opportunities', label: 'Best Opportunities', icon: Award, path: '/opportunities' },
   { id: 'previous_analyses', label: 'Previous Analyses', icon: Clock, path: '/runs' }
 ];

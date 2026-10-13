@@ -103,5 +103,21 @@ export const apiClient = {
   resumeScheduler: async () => {
     const res = await axios.post(`${API_BASE}/scheduler/resume`);
     return res.data;
-  }
+  },
+
+  // Idea Finder
+  startIdeaFinder: async (niche: string, niche_notes?: string, target_market?: string) => {
+    const res = await axios.post(`${API_BASE}/idea-finder`, { niche, niche_notes, target_market: target_market || 'India' });
+    return res.data as { run_id: number; message: string; status: string };
+  },
+
+  getIdeaRun: async (runId: number) => {
+    const res = await axios.get(`${API_BASE}/idea-finder/${runId}`);
+    return res.data as IdeaFinderRun;
+  },
+
+  listIdeaRuns: async () => {
+    const res = await axios.get(`${API_BASE}/idea-finder`);
+    return res.data as IdeaFinderRunSummary[];
+  },
 };
