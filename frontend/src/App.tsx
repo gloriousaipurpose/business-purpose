@@ -8,13 +8,16 @@ import { BestOpportunitiesPage } from './pages/BestOpportunitiesPage';
 import { PreviousAnalysesPage } from './pages/PreviousAnalysesPage';
 import { ComparePage } from './pages/ComparePage';
 import { IdeaFinderPage } from './pages/IdeaFinderPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { RunProvider } from './context/RunContext';
 
 export const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
-    <RunProvider>
+    <ErrorBoundary>
+      <RunProvider>
       <div className="flex h-screen overflow-hidden bg-[#0b0f19] relative">
         <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -38,13 +41,14 @@ export const App: React.FC = () => {
               <Route path="/emerging_trends" element={<Navigate to="/sections/emerging_trends" replace />} />
               <Route path="/india_gaps" element={<Navigate to="/sections/india_gaps" replace />} />
               <Route path="/deep_research" element={<Navigate to="/sections/deep_research" replace />} />
-              <Route path="*" element={<Navigate to="/sections/new_startups" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </main>
         </div>
         <LiveProgressModal />
       </div>
     </RunProvider>
+    </ErrorBoundary>
   );
 };
 
