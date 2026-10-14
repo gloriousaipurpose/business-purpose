@@ -5,7 +5,9 @@ import {
   Run,
   NotificationItem,
   SchedulerStatus,
-  CompareResult
+  CompareResult,
+  IdeaFinderRun,
+  IdeaFinderRunSummary
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL 

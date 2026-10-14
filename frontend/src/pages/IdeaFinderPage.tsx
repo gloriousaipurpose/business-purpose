@@ -298,8 +298,8 @@ export const IdeaFinderPage: React.FC = () => {
   const rejectedIdeas = displayedRun?.result_json?.rejected_ideas || [];
   const niche = displayedRun?.niche || '';
 
-  const openCount = findings.filter(f => f.gap_status === 'open').length;
-  const narrowCount = findings.filter(f => f.gap_status === 'narrow').length;
+  const openCount = findings.filter((f: IdeaFinderFinding) => f.gap_status === 'open').length;
+  const narrowCount = findings.filter((f: IdeaFinderFinding) => f.gap_status === 'narrow').length;
 
   // ── Select past run ────────────────────────────────────────────────────────
   const loadPastRun = async (id: number) => {
@@ -462,12 +462,12 @@ export const IdeaFinderPage: React.FC = () => {
               <p className="text-[#7e7b99] text-[11px] font-medium uppercase tracking-wider">
                 {findings.length} Validated Gap{findings.length !== 1 ? 's' : ''} — sorted by gap status
               </p>
-              {[...findings]
-                .sort((a, b) => {
-                  const order = { open: 0, narrow: 1, closed: 2 };
+              {([...findings] as IdeaFinderFinding[])
+                .sort((a: IdeaFinderFinding, b: IdeaFinderFinding) => {
+                  const order: Record<string, number> = { open: 0, narrow: 1, closed: 2 };
                   return (order[a.gap_status] ?? 3) - (order[b.gap_status] ?? 3);
                 })
-                .map((f, i) => (
+                .map((f: IdeaFinderFinding, i: number) => (
                   <IdeaCard key={i} f={f} index={i} />
                 ))}
             </div>
@@ -486,7 +486,7 @@ export const IdeaFinderPage: React.FC = () => {
                 🚫 Ideas That Were Considered But Rejected ({rejectedIdeas.length})
               </p>
               <div className="space-y-2">
-                {rejectedIdeas.map((r, i) => (
+                {(rejectedIdeas as { idea: string; reason: string }[]).map((r, i: number) => (
                   <div key={i} className="flex items-start gap-2.5 bg-[#13111e] border border-[#29253b] rounded-lg p-3">
                     <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                     <div>
