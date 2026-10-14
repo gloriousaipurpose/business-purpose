@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Lightbulb, Sparkles, ChevronDown, ChevronUp, AlertTriangle,
@@ -249,7 +249,7 @@ export const IdeaFinderPage: React.FC = () => {
   const [targetMarket, setTargetMarket] = useState('India');
   const [activeRunId, setActiveRunId] = useState<number | null>(null);
   const [pollingRunId, setPollingRunId] = useState<number | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [viewedRun, setViewedRun] = useState<any>(null);
 
   // list of past runs
   const { data: pastRuns, refetch: refetchList } = useQuery({
@@ -275,9 +275,13 @@ export const IdeaFinderPage: React.FC = () => {
     if (activeRun?.status === 'completed' || activeRun?.status === 'failed') {
       setPollingRunId(null);
       setActiveRunId(activeRun.id);
+      setViewedRun(activeRun);
       refetchList();
     }
-  }, [activeRun?.status]);
+    if (activeRun?.status === 'running') {
+      setViewedRun(activeRun);
+    }
+  }, [activeRun?.status, activeRun?.id]);
 
   const startMutation = useMutation({
     mutationFn: () => {
@@ -288,27 +292,31 @@ export const IdeaFinderPage: React.FC = () => {
     onSuccess: (data) => {
       setPollingRunId(data.run_id);
       setActiveRunId(null);
+      setViewedRun(null);
       refetchList();
     },
   });
 
-  const displayedRun = activeRun && activeRun.id === (activeRunId || pollingRunId) ? activeRun : null;
+  const displayedRun = viewedRun;
   const isRunning = pollingRunId !== null && activeRun?.status === 'running';
-  const findings = displayedRun?.result_json?.findings || [];
-  const rejectedIdeas = displayedRun?.result_json?.rejected_ideas || [];
+  const findings: IdeaFinderFinding[] = (displayedRun?.result_json?.findings || []) as IdeaFinderFinding[];
+  const rejectedIdeas = (displayedRun?.result_json?.rejected_ideas || []) as { idea: string; reason: string }[];
   const niche = displayedRun?.niche || '';
 
   const openCount = findings.filter((f: IdeaFinderFinding) => f.gap_status === 'open').length;
   const narrowCount = findings.filter((f: IdeaFinderFinding) => f.gap_status === 'narrow').length;
 
-  // ── Select past run ────────────────────────────────────────────────────────
+  // ── Load a past run and show its results ──────────────────────────────────
   const loadPastRun = async (id: number) => {
     setPollingRunId(null);
     setActiveRunId(id);
-    queryClient.setQueryData(['ideaRun', id], undefined);
-    const run = await apiClient.getIdeaRun(id);
-    queryClient.setQueryData(['ideaRun', id], run);
-    setPollingRunId(id);
+    setViewedRun(null); // clear while loading
+    try {
+      const run = await apiClient.getIdeaRun(id);
+      setViewedRun(run);
+    } catch (e) {
+      console.error('Failed to load past run', e);
+    }
   };
 
   return (
