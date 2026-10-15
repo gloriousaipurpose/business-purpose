@@ -544,19 +544,15 @@ export const IdeaFinderPage: React.FC = () => {
   const { data: pastRuns, refetch: refetchList } = useQuery({
     queryKey: ['ideaRuns'],
     queryFn: () => apiClient.listIdeaRuns(),
-    refetchInterval: pollingRunId ? 4000 : false,
+    refetchInterval: pollingRunId ? 3000 : false,
   });
 
-  // active run status
+  // active run status - poll reliably while pollingRunId is present
   const { data: activeRun, refetch: refetchActive } = useQuery({
     queryKey: ['ideaRun', pollingRunId],
     queryFn: () => apiClient.getIdeaRun(pollingRunId!),
     enabled: pollingRunId !== null,
-    refetchInterval: (data: any) => {
-      if (!data) return 3000;
-      if (data?.status === 'running') return 3000;
-      return false;
-    },
+    refetchInterval: pollingRunId !== null ? 2500 : false,
   });
 
   // When active run finishes, stop polling and show result
@@ -567,10 +563,23 @@ export const IdeaFinderPage: React.FC = () => {
       setViewedRun(activeRun);
       refetchList();
     }
-    if (activeRun?.status === 'running') {
-      setViewedRun(activeRun);
+  }, [activeRun?.status, activeRun?.id, refetchList]);
+
+  // Dual safety check: if pastRuns list updates and detects our pollingRun is already completed/failed
+  useEffect(() => {
+    if (pollingRunId && pastRuns && Array.isArray(pastRuns)) {
+      const match = pastRuns.find((r: any) => r.id === pollingRunId);
+      if (match && (match.status === 'completed' || match.status === 'failed')) {
+        apiClient.getIdeaRun(pollingRunId).then((fullRun) => {
+          setPollingRunId(null);
+          setActiveRunId(fullRun.id);
+          setViewedRun(fullRun);
+        }).catch(err => {
+          console.warn('Failed to load finished idea run:', err);
+        });
+      }
     }
-  }, [activeRun?.status, activeRun?.id]);
+  }, [pastRuns, pollingRunId]);
 
   const startMutation = useMutation({
     mutationFn: () => {
@@ -586,8 +595,8 @@ export const IdeaFinderPage: React.FC = () => {
     },
   });
 
-  const displayedRun = viewedRun;
-  const isRunning = pollingRunId !== null && activeRun?.status === 'running';
+  const displayedRun = viewedRun || (activeRun?.status === 'completed' ? activeRun : null);
+  const isRunning = pollingRunId !== null && (activeRun?.status === 'running' || !activeRun);
 
   // Mode resolution
   const runMode: 'normal' | 'innovation' =

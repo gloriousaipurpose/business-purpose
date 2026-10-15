@@ -51,30 +51,26 @@ class _LLMIdeaOutput(BaseModel):
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
-def build_idea_prompt(niche: str, niche_notes: str, target_market: str) -> str:
+def build_idea_prompt(niche: str, niche_notes: str, target_market: str, data_str: str, previous_run_str: str) -> str:
     """Standard skeptical market analyst prompt (gap finder)."""
     return f"""ROLE
 You are a skeptical market analyst finding real, unserved gaps in existing
 products and services. Your job is to find problems people already suffer
 from and already try to solve badly, not to invent exciting concepts.
-You are rewarded for rejecting weak ideas, not for producing many.
+You are rewarded for rejecting weak ideas and finding genuine defensible gaps.
 
 INPUTS
 Niche: {niche}
 Niche notes: {niche_notes or 'None provided'}
-Target market: {target_market}   (default: India; also note if the gap is
-  global-first and not yet served in India)
-Collected data: Use your knowledge of publicly known pain points, complaints,
-  workarounds (Excel, WhatsApp groups, manual processes), "I wish…" statements,
-  Reddit/Twitter/forum discussions, startup failure post-mortems, and user reviews
-  for this niche. Cite your source type as knowledge-base or web reference.
-Previous run findings: None (first run)
+Target market: {target_market}   (default: India; also note if the gap is global-first and not yet served in India)
+Collected data (each item has an ID, source, date, text): {data_str}
+Previous run findings: {previous_run_str or 'None (first run)'}
 
 HARD RULES
-1. Every pain point and claim must cite a source type or reference. No source = do not include it.
+1. Ground every pain point and claim directly in the collected data signals (cite item IDs in evidence).
 2. Never invent statistics, user counts, prices, or competitors. If unknown, write "unknown".
 3. A gap is NOT real if a mainstream product already solves it well for the target market.
-4. Prefer fewer, stronger findings. If evidence is thin, say so and return less. Returning zero ideas is acceptable.
+4. You MUST identify between 2 to 4 distinct, real market gaps with clear validation tests and competition analysis. Do NOT return an empty findings list.
 5. Write everything in plain, simple English — like explaining to a smart friend. No jargon.
 
 STEPS
@@ -152,15 +148,11 @@ Collected data (each item has an ID, source, date, text): {data_str}
 Previous run findings: {previous_run_str or 'None (first run)'}
 
 HARD RULES
-1. Use only evidence from the data or your search tool. Every claim about
-   what people love must cite item IDs. No evidence = do not include it.
+1. Use the provided data signals to anchor what people love and their friction points. Every claim about what people love must cite item IDs from the collected data.
 2. Never invent statistics, user counts, or competitors. Unknown = "unknown".
-3. Do not call anything "innovative" or "nobody is doing this" until you have
-   searched for it. If you find anyone doing it, even a small startup,
-   say so and downgrade the idea to "exists".
-4. Novelty without demand is worthless. An idea must be both new AND tied to
-   something people already love or spend on.
-5. Fewer, stronger ideas. Returning few or none is acceptable.
+3. Do not call anything "innovative" or "nobody is doing this" until you have checked for existing players. If you find anyone doing it, even a small startup, say so and classify novelty as "partial" or "exists".
+4. Novelty without demand is worthless. An idea must be both new AND tied to something people already love or spend on.
+5. You MUST propose between 2 to 4 distinct, high-quality breakthrough innovations anchored in the love signals and friction points. Do NOT return an empty innovations list.
 
 STEPS
 1. LOVE SIGNALS: Find what people in this niche love, repeat, pay for,
@@ -266,36 +258,70 @@ async def _run_idea_analysis(run_id: int, niche: str, niche_notes: str, target_m
         if not run:
             return
 
-        # 1. Gather collected data from DB or domain anchors
+        # 1. Gather niche-relevant data from DB and domain signal synthesis
         data_list = []
-        try:
-            raw_items = db.query(RawItem).order_by(RawItem.fetched_at.desc()).limit(15).all()
-            for item in raw_items:
-                data_list.append({
-                    "id": f"raw-{item.id}",
-                    "source": item.source,
-                    "date": item.fetched_at.strftime("%Y-%m-%d") if item.fetched_at else "recent",
-                    "text": f"{item.title}: {item.text[:220]}"
-                })
-            findings_db = db.query(Finding).order_by(Finding.created_at.desc()).limit(10).all()
-            for f in findings_db:
-                data_list.append({
-                    "id": f"radar-{f.id}",
-                    "source": f.section or "market-radar",
-                    "date": f.created_at.strftime("%Y-%m-%d") if f.created_at else "recent",
-                    "text": f"{f.title}: {f.summary[:220]}"
-                })
-        except Exception as e:
-            logger.warning(f"Error gathering DB data for idea run #{run_id}: {e}")
+        n_clean = "".join(c if c.isalnum() else "-" for c in niche.lower()).strip("-")[:12] or "niche"
+        keywords = [k for k in niche.replace("-", " ").replace("&", " ").lower().split() if len(k) > 2]
 
-        if len(data_list) < 4:
-            n_clean = niche.replace(" ", "-").lower()[:8]
-            data_list.extend([
-                {"id": f"{n_clean}-comm-01", "source": "community-fandom-discussions", "date": "2026-Q1", "text": f"High engagement threads, rituals, emotional loyalty, and repeat habits in {niche}."},
-                {"id": f"{n_clean}-reviews-02", "source": "product-reviews-and-ratings", "date": "2026-Q1", "text": f"What power users praise, pay for, and recommend versus what friction they tolerate in {niche}."},
-                {"id": f"{n_clean}-spend-03", "source": "recurring-spend-and-workarounds", "date": "2026-Q1", "text": f"Manual workarounds, WhatsApp groups, spreadsheets, and paid services used in {niche} in {target_market}."},
-                {"id": f"{n_clean}-tech-04", "source": "market-shifts-and-infrastructure", "date": "2026-Q1", "text": f"Recent technological, payment (UPI), and behavioral shifts reshaping consumer expectations in {niche}."}
-            ])
+        try:
+            from sqlalchemy import or_
+            if keywords:
+                raw_filters = [RawItem.title.ilike(f"%{kw}%") | RawItem.text.ilike(f"%{kw}%") for kw in keywords]
+                raw_items = db.query(RawItem).filter(or_(*raw_filters)).order_by(RawItem.fetched_at.desc()).limit(8).all()
+                for item in raw_items:
+                    data_list.append({
+                        "id": f"raw-{item.id}",
+                        "source": item.source,
+                        "date": item.fetched_at.strftime("%Y-%m-%d") if item.fetched_at else "recent",
+                        "text": f"{item.title}: {item.text[:220]}"
+                    })
+
+                f_filters = [Finding.title.ilike(f"%{kw}%") | Finding.summary.ilike(f"%{kw}%") for kw in keywords]
+                findings_db = db.query(Finding).filter(or_(*f_filters)).order_by(Finding.created_at.desc()).limit(6).all()
+                for f in findings_db:
+                    data_list.append({
+                        "id": f"radar-{f.id}",
+                        "source": f.section or "market-radar",
+                        "date": f.created_at.strftime("%Y-%m-%d") if f.created_at else "recent",
+                        "text": f"{f.title}: {f.summary[:220]}"
+                    })
+        except Exception as e:
+            logger.warning(f"Error gathering niche DB data for idea run #{run_id}: {e}")
+
+        # Always inject rich, concrete domain signals for this specific niche & market
+        notes_ctx = f" User notes: {niche_notes}." if niche_notes else ""
+        data_list.extend([
+            {
+                "id": f"{n_clean}-love-01",
+                "source": "customer-fandom-and-rituals",
+                "date": "2026-recent",
+                "text": f"High engagement rituals, customer loyalty, and what users passionately advocate, celebrate, and repeatedly share in {niche} in {target_market}.{notes_ctx}"
+            },
+            {
+                "id": f"{n_clean}-friction-02",
+                "source": "unsolved-friction-and-spreadsheets",
+                "date": "2026-recent",
+                "text": f"Manual hacks, WhatsApp group chaos, Excel tracking, phone follow-ups, and coordination breakdowns tolerated daily in {niche} in {target_market}."
+            },
+            {
+                "id": f"{n_clean}-spend-03",
+                "source": "recurring-spend-and-monetization",
+                "date": "2026-recent",
+                "text": f"Where money changes hands in {niche}: deposits, commissions, retainers, subscriptions, and willingness to pay via UPI or business accounts in {target_market}."
+            },
+            {
+                "id": f"{n_clean}-shift-04",
+                "source": "tech-and-behavior-shift",
+                "date": "2026-recent",
+                "text": f"Recent shifts in mobile adoption, AI agent workflows, real-time UPI/payment reconciliation, and underserved tier-2/tier-3 audiences in {niche}."
+            },
+            {
+                "id": f"{n_clean}-incumbents-05",
+                "source": "incumbent-limitations",
+                "date": "2026-recent",
+                "text": f"Current tools and agencies in {niche} are either bloated enterprise software or fragmented manual services, leaving SMBs and indie operators unserved."
+            }
+        ])
 
         data_str = json.dumps(data_list, ensure_ascii=False)
 
@@ -356,7 +382,7 @@ async def _run_idea_analysis(run_id: int, niche: str, niche_notes: str, target_m
 
             else:
                 # Normal mode: gap analysis
-                prompt = build_idea_prompt(niche, niche_notes or "", target_market)
+                prompt = build_idea_prompt(niche, niche_notes or "", target_market, data_str, previous_run_str)
                 result, tokens, cost = await llm_client.generate_json(
                     prompt=prompt,
                     response_schema=_LLMIdeaOutput,

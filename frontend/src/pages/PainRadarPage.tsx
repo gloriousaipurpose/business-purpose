@@ -240,18 +240,15 @@ export const PainRadarPage: React.FC = () => {
   const { data: pastRuns, refetch: refetchList } = useQuery({
     queryKey: ['painRadarRuns'],
     queryFn: () => apiClient.listPainRadarRuns(),
-    refetchInterval: pollingRunId ? 4000 : false,
+    refetchInterval: pollingRunId ? 3000 : false,
   });
 
-  // Active run polling
+  // Active run polling - reliably poll every 2.5s while pollingRunId is present
   const { data: activeRun } = useQuery({
     queryKey: ['painRadarRun', pollingRunId],
     queryFn: () => apiClient.getPainRadarRun(pollingRunId!),
     enabled: pollingRunId !== null,
-    refetchInterval: (data: any) => {
-      if (!data || data.status === 'running') return 3000;
-      return false;
-    },
+    refetchInterval: pollingRunId !== null ? 2500 : false,
   });
 
   // Source performance history
@@ -267,10 +264,23 @@ export const PainRadarPage: React.FC = () => {
       setViewedRun(activeRun);
       refetchList();
     }
-    if (activeRun?.status === 'running') {
-      setViewedRun(activeRun);
+  }, [activeRun?.status, activeRun?.id, refetchList]);
+
+  // Dual safety check: if pastRuns list updates and detects polling run completed
+  useEffect(() => {
+    if (pollingRunId && pastRuns && Array.isArray(pastRuns)) {
+      const match = pastRuns.find((r: any) => r.id === pollingRunId);
+      if (match && (match.status === 'completed' || match.status === 'failed')) {
+        apiClient.getPainRadarRun(pollingRunId).then((fullRun) => {
+          setPollingRunId(null);
+          setActiveRunId(fullRun.id);
+          setViewedRun(fullRun);
+        }).catch(err => {
+          console.warn('Failed to load finished pain radar run:', err);
+        });
+      }
     }
-  }, [activeRun?.status, activeRun?.id]);
+  }, [pastRuns, pollingRunId]);
 
   const startMutation = useMutation({
     mutationFn: () => {
@@ -298,8 +308,8 @@ export const PainRadarPage: React.FC = () => {
     }
   };
 
-  const displayedRun = viewedRun;
-  const isRunning = pollingRunId !== null && activeRun?.status === 'running';
+  const displayedRun = viewedRun || (activeRun?.status === 'completed' ? activeRun : null);
+  const isRunning = pollingRunId !== null && (activeRun?.status === 'running' || !activeRun);
 
   const painPoints: TriangulatedPainPoint[] = (displayedRun?.result_json?.pain_points || []) as TriangulatedPainPoint[];
   const verifiedCount = painPoints.filter(p => (p.verification || '').toLowerCase() === 'verified').length;

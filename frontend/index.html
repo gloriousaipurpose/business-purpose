@@ -34,13 +34,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-    <!-- Umami Analytics (privacy-friendly, only you see the dashboard) -->
-    <!-- To activate: add VITE_UMAMI_WEBSITE_ID to your Render env vars -->
-    <script
-      defer
-      src="https://cloud.umami.is/script.js"
-      data-website-id="5504dfc0-1024-4277-bc2d-a434217ed5d4"
-    ></script>
+    <!-- Umami Analytics (privacy-friendly, loads safely in production) -->
+    <script>
+      (function() {
+        try {
+          if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            var s = document.createElement('script');
+            s.defer = true;
+            s.src = 'https://cloud.umami.is/script.js';
+            s.setAttribute('data-website-id', '5504dfc0-1024-4277-bc2d-a434217ed5d4');
+            s.onerror = function() { /* client ad blocker active, ignore quietly */ };
+            document.head.appendChild(s);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-[#0b0f19] text-slate-100 font-['Inter',sans-serif] antialiased selection:bg-purple-500 selection:text-white">
     <div id="root"></div>
