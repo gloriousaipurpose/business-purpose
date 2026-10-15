@@ -75,6 +75,7 @@ def ensure_schema_columns():
     """Ensures newly added columns exist in existing SQLite/Postgres tables."""
     try:
         with engine.connect() as conn:
+            # ── findings table columns ──
             result = conn.execute(text("PRAGMA table_info(findings)")).fetchall()
             col_names = [row[1] for row in result]
             if col_names and "pain_point" not in col_names:
@@ -82,6 +83,29 @@ def ensure_schema_columns():
                 conn.commit()
             if col_names and "action_plan" not in col_names:
                 conn.execute(text("ALTER TABLE findings ADD COLUMN action_plan TEXT"))
+                conn.commit()
+            if col_names and "likes" not in col_names:
+                conn.execute(text("ALTER TABLE findings ADD COLUMN likes INTEGER NOT NULL DEFAULT 0"))
+                conn.commit()
+    except Exception:
+        pass
+
+    # PostgreSQL: use information_schema (PRAGMA not available)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='findings'"
+            )).fetchall()
+            col_names = [row[0] for row in result]
+            if col_names and "pain_point" not in col_names:
+                conn.execute(text("ALTER TABLE findings ADD COLUMN pain_point TEXT"))
+                conn.commit()
+            if col_names and "action_plan" not in col_names:
+                conn.execute(text("ALTER TABLE findings ADD COLUMN action_plan TEXT"))
+                conn.commit()
+            if col_names and "likes" not in col_names:
+                conn.execute(text("ALTER TABLE findings ADD COLUMN likes INTEGER NOT NULL DEFAULT 0"))
                 conn.commit()
     except Exception:
         pass

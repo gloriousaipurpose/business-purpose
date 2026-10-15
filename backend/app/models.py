@@ -73,6 +73,7 @@ class Finding(Base):
     evidence = Column(JSON, nullable=False, default=list)  # list of {url, quote, source}
     confidence = Column(String, nullable=False, default="medium")  # high | medium | low
     source_count = Column(Integer, default=1, nullable=False)
+    likes = Column(Integer, default=0, nullable=False)  # anonymous heart/like count
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     run = relationship("Run", back_populates="findings")

@@ -19,6 +19,7 @@ export interface Finding {
   confidence: 'high' | 'medium' | 'low';
   score?: number;
   source_count: number;
+  likes: number;
   created_at: string;
 }
 

@@ -37,6 +37,11 @@ export const apiClient = {
     return res.data as { message: string; status: string };
   },
 
+  likeFinding: async (findingId: number) => {
+    const res = await axios.post(`${API_BASE}/sections/findings/${findingId}/like`);
+    return res.data as { id: number; likes: number };
+  },
+
   getRuns: async (run_type?: string, status?: string) => {
 
     const res = await axios.get(`${API_BASE}/runs`, { params: { run_type, status } });

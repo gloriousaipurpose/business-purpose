@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ExternalLink, ChevronDown, ChevronUp, Quote, Shield, Award, AlertTriangle, Lightbulb } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp, Quote, Shield, Award, AlertTriangle, Lightbulb, Heart } from 'lucide-react';
 import { Finding } from '../types';
+import { apiClient } from '../api/client';
 
 interface FindingCardProps {
   finding: Finding;
@@ -9,6 +10,26 @@ interface FindingCardProps {
 
 export const FindingCard: React.FC<FindingCardProps> = ({ finding, onOpenScoreDetail }) => {
   const [expandedQuotes, setExpandedQuotes] = useState(false);
+  const likeKey = `liked_finding_${finding.id}`;
+  const [liked, setLiked] = useState(() => localStorage.getItem(likeKey) === '1');
+  const [likeCount, setLikeCount] = useState(finding.likes ?? 0);
+  const [liking, setLiking] = useState(false);
+
+  const handleLike = async () => {
+    if (liked || liking) return;
+    setLiking(true);
+    setLiked(true);
+    setLikeCount(c => c + 1); // optimistic
+    localStorage.setItem(likeKey, '1');
+    try {
+      const res = await apiClient.likeFinding(finding.id);
+      setLikeCount(res.likes);
+    } catch {
+      // silently fail — keep optimistic count
+    } finally {
+      setLiking(false);
+    }
+  };
 
   return (
     <div className="bg-[#181623] border border-[#29253b] hover:border-[#3b3754] rounded-xl p-4 sm:p-5 transition-colors flex flex-col justify-between">
@@ -128,7 +149,31 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onOpenScoreDe
       {/* Card Footer */}
       <div className="pt-3 border-t border-[#29253b] flex items-center justify-between text-[11px] text-[#7e7b99]">
         <span>Entity: {finding.entity_name || 'N/A'}</span>
-        <span>{new Date(finding.created_at).toLocaleDateString()}</span>
+        <div className="flex items-center gap-3">
+          <span>{new Date(finding.created_at).toLocaleDateString()}</span>
+          {/* Heart / Like button */}
+          <button
+            onClick={handleLike}
+            disabled={liked || liking}
+            title={liked ? 'You liked this' : 'Like this finding'}
+            className={`flex items-center gap-1 transition-all duration-200 ${
+              liked
+                ? 'text-rose-400 scale-110'
+                : 'text-[#3b3754] hover:text-rose-400 hover:scale-110'
+            } disabled:cursor-default`}
+          >
+            <Heart
+              className={`w-3.5 h-3.5 transition-all ${
+                liked ? 'fill-rose-400 text-rose-400' : ''
+              }`}
+            />
+            {likeCount > 0 && (
+              <span className={`text-[10px] font-semibold ${liked ? 'text-rose-400' : 'text-[#7e7b99]'}`}>
+                {likeCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

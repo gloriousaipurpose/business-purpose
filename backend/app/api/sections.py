@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.db import get_db
 from app.models import Finding, Run, Entity, OpportunityScore
 
@@ -63,6 +64,7 @@ def get_latest_section_findings(name: str, db: Session = Depends(get_db)):
             "confidence": f.confidence,
             "score": latest_score,
             "source_count": f.source_count,
+            "likes": getattr(f, "likes", 0) or 0,
             "created_at": f.created_at
         })
 
@@ -81,3 +83,19 @@ def get_latest_section_findings(name: str, db: Session = Depends(get_db)):
         "findings": result_findings,
         "summary": section_summary
     }
+
+
+@router.post("/findings/{finding_id}/like", response_model=dict)
+def like_finding(finding_id: int, db: Session = Depends(get_db)):
+    """Anonymous heart/like — atomically increments the like counter."""
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found.")
+    # Atomic increment using SQL expression to avoid race conditions
+    db.execute(
+        text("UPDATE findings SET likes = COALESCE(likes, 0) + 1 WHERE id = :id"),
+        {"id": finding_id}
+    )
+    db.commit()
+    db.refresh(finding)
+    return {"id": finding_id, "likes": getattr(finding, "likes", 1) or 1}
