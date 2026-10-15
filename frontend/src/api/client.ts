@@ -7,7 +7,10 @@ import {
   SchedulerStatus,
   CompareResult,
   IdeaFinderRun,
-  IdeaFinderRunSummary
+  IdeaFinderRunSummary,
+  PainRadarRun,
+  PainRadarRunSummary,
+  SourcePerformanceRecord
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL 
@@ -131,5 +134,30 @@ export const apiClient = {
   listIdeaRuns: async () => {
     const res = await axios.get(`${API_BASE}/idea-finder`);
     return res.data as IdeaFinderRunSummary[];
+  },
+
+  // Pain Points Dedicated Radar Pipeline
+  startPainRadar: async (niche: string, niche_notes?: string, target_market?: string) => {
+    const res = await axios.post(`${API_BASE}/pain-radar`, {
+      niche,
+      niche_notes,
+      target_market: target_market || 'India'
+    });
+    return res.data as { run_id: number; message: string; status: string };
+  },
+
+  getPainRadarRun: async (runId: number) => {
+    const res = await axios.get(`${API_BASE}/pain-radar/${runId}`);
+    return res.data as PainRadarRun;
+  },
+
+  listPainRadarRuns: async () => {
+    const res = await axios.get(`${API_BASE}/pain-radar`);
+    return res.data as PainRadarRunSummary[];
+  },
+
+  getSourcePerformance: async () => {
+    const res = await axios.get(`${API_BASE}/pain-radar/sources/performance`);
+    return res.data as SourcePerformanceRecord[];
   },
 };

@@ -247,3 +247,121 @@ export interface IdeaFinderRunSummary {
   finished_at?: string;
 }
 
+// ── Pain Points Radar Dedicated Pipeline Types ───────────────────────────────
+
+export interface PainEvidenceItem {
+  id: string;
+  quote: string;
+}
+
+export interface PainSolutionItem {
+  name: string;
+  misses: string;
+}
+
+export interface PainPointScoreItem {
+  score: number;
+  reason: string;
+}
+
+export interface TriangulatedPainPoint {
+  name: string;
+  who_suffers: string;
+  situation: string;
+  evidence: PainEvidenceItem[];
+  independent_sources: number;
+  independent_authors: number;
+  intensity: string;
+  workaround: string;
+  spend_evidence: string;
+  signal_types: string[]; // complaint, workaround, spend, intent
+  trend: 'growing' | 'steady' | 'fading' | string;
+  existing_solutions: PainSolutionItem[];
+  gap_status: 'open' | 'narrow' | 'closed' | string;
+  bias_notes?: string;
+  scores: {
+    intensity?: PainPointScoreItem;
+    frequency?: PainPointScoreItem;
+    payment_evidence?: PainPointScoreItem;
+    workaround_cost?: PainPointScoreItem;
+    trend?: PainPointScoreItem;
+    gap_openness?: PainPointScoreItem;
+    india_relevance?: PainPointScoreItem;
+    [key: string]: PainPointScoreItem | undefined;
+  };
+  total_score: number;
+  verification: 'verified' | 'unverified' | string;
+  confidence: 'low' | 'medium' | 'high' | string;
+  change_vs_previous?: string;
+}
+
+export interface SourcePlanItem {
+  source: string;
+  signal_type: string;
+  reason: string;
+  scores?: Record<string, any>;
+  category: 'proven' | 'untested' | 'exploratory' | string;
+  queries: string[];
+  filters: Record<string, any>;
+  max_items: number;
+}
+
+export interface StrategistPlan {
+  pain_hypotheses: string[];
+  source_plan: SourcePlanItem[];
+  signal_coverage: Record<string, number>;
+  blind_spots: string;
+  expected_cost: string;
+}
+
+export interface SourceFeedbackItem {
+  source: string;
+  useful: number;
+  noise: 'low' | 'medium' | 'high' | string;
+}
+
+export interface PainRadarRun {
+  id: number;
+  niche: string;
+  niche_notes?: string;
+  target_market: string;
+  status: 'running' | 'completed' | 'failed';
+  strategist_plan?: StrategistPlan;
+  collected_items_count: number;
+  result_json?: {
+    niche: string;
+    run_summary: string;
+    pain_points: TriangulatedPainPoint[];
+    discarded: { item: string; reason: string }[];
+    source_feedback: SourceFeedbackItem[];
+    data_gaps: string;
+  };
+  verified_count?: number;
+  error_text?: string;
+  started_at: string;
+  finished_at?: string;
+}
+
+export interface PainRadarRunSummary {
+  id: number;
+  niche: string;
+  niche_notes?: string;
+  target_market: string;
+  status: string;
+  pain_points_count: number;
+  verified_count: number;
+  run_summary: string;
+  started_at: string;
+  finished_at?: string;
+}
+
+export interface SourcePerformanceRecord {
+  id: number;
+  source: string;
+  niche: string;
+  items_collected: number;
+  useful_count: number;
+  noise_level: string;
+  last_run_at: string;
+}
+

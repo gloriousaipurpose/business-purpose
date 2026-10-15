@@ -20,7 +20,7 @@ export const SECTIONS = [
   { id: 'new_startups', label: 'New Startups', icon: Sparkles, path: '/sections/new_startups' },
   { id: 'booming_products', label: 'Booming Products', icon: TrendingUp, path: '/sections/booming_products' },
   { id: 'global_to_india', label: 'Global to India', icon: Globe, path: '/sections/india_gaps' },
-  { id: 'pain_points', label: 'Pain Points', icon: AlertCircle, path: '/sections/pain_points' },
+  { id: 'pain_points', label: 'Pain Points Radar 🔥', icon: AlertCircle, path: '/pain-radar' },
   { id: 'ai_opportunities', label: 'AI & Software', icon: Cpu, path: '/sections/ai_opportunities' },
   { id: 'emerging_trends', label: 'Emerging Trends', icon: LineChart, path: '/sections/emerging_trends' },
   { id: 'deep_research', label: 'Deep Research', icon: Search, path: '/sections/deep_research' },

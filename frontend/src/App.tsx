@@ -8,6 +8,7 @@ import { BestOpportunitiesPage } from './pages/BestOpportunitiesPage';
 import { PreviousAnalysesPage } from './pages/PreviousAnalysesPage';
 import { ComparePage } from './pages/ComparePage';
 import { IdeaFinderPage } from './pages/IdeaFinderPage';
+import { PainRadarPage } from './pages/PainRadarPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RunProvider } from './context/RunContext';
@@ -33,10 +34,11 @@ export const App: React.FC = () => {
               <Route path="/previous_analyses" element={<Navigate to="/runs" replace />} />
               <Route path="/compare" element={<ComparePage />} />
               <Route path="/idea-finder" element={<IdeaFinderPage />} />
+              <Route path="/pain-radar" element={<PainRadarPage />} />
               {/* Alias for direct section URLs */}
               <Route path="/new_startups" element={<Navigate to="/sections/new_startups" replace />} />
               <Route path="/booming_products" element={<Navigate to="/sections/booming_products" replace />} />
-              <Route path="/pain_points" element={<Navigate to="/sections/pain_points" replace />} />
+              <Route path="/pain_points" element={<Navigate to="/pain-radar" replace />} />
               <Route path="/ai_opportunities" element={<Navigate to="/sections/ai_opportunities" replace />} />
               <Route path="/emerging_trends" element={<Navigate to="/sections/emerging_trends" replace />} />
               <Route path="/india_gaps" element={<Navigate to="/sections/india_gaps" replace />} />

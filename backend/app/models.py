@@ -133,3 +133,31 @@ class IdeaFinderRun(Base):
     error_text = Column(Text, nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     finished_at = Column(DateTime, nullable=True)
+
+
+class PainPointRun(Base):
+    __tablename__ = "pain_point_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    niche = Column(String, nullable=False, index=True)          # e.g. "e-commerce"
+    niche_notes = Column(Text, nullable=True)
+    target_market = Column(String, nullable=False, default="India")
+    status = Column(String, nullable=False, default="running")  # running | completed | failed
+    strategist_plan = Column(JSON, nullable=True)               # Stage 1: Strategist Plan JSON
+    collected_data = Column(JSON, nullable=True)                # Stage 2: Cleaned raw items collected by code
+    result_json = Column(JSON, nullable=True)                   # Stage 3: Analyst triangulated pain points JSON
+    error_text = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+
+
+class SourcePerformance(Base):
+    __tablename__ = "source_performance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False, index=True)         # source id e.g. "reddit", "hn_algolia"
+    niche = Column(String, nullable=False, index=True)          # e.g. "e-commerce" or "global"
+    items_collected = Column(Integer, nullable=False, default=0)
+    useful_count = Column(Integer, nullable=False, default=0)
+    noise_level = Column(String, nullable=False, default="normal") # "low" | "normal" | "high"
+    last_run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
