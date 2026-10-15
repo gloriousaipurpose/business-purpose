@@ -231,10 +231,41 @@ export const PainRadarPage: React.FC = () => {
   const [customNiche, setCustomNiche] = useState('');
   const [nicheNotes, setNicheNotes] = useState('');
   const [targetMarket, setTargetMarket] = useState('India');
-  const [activeRunId, setActiveRunId] = useState<number | null>(null);
-  const [pollingRunId, setPollingRunId] = useState<number | null>(null);
-  const [viewedRun, setViewedRun] = useState<any>(null);
+  const [activeRunId, setActiveRunId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('business_radar_active_pain_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [pollingRunId, setPollingRunId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('business_radar_polling_pain_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [viewedRun, setViewedRun] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('business_radar_last_pain_run');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeTab, setActiveTab] = useState<'pain_points' | 'strategist_plan' | 'sources_perf'>('pain_points');
+
+  // Persist viewedRun so refreshes never lose analysis results
+  useEffect(() => {
+    if (viewedRun) {
+      try {
+        localStorage.setItem('business_radar_last_pain_run', JSON.stringify(viewedRun));
+      } catch (e) {}
+    }
+  }, [viewedRun]);
+
+  // Persist or clean up active polling run ID
+  useEffect(() => {
+    if (pollingRunId) {
+      localStorage.setItem('business_radar_polling_pain_id', String(pollingRunId));
+    } else {
+      localStorage.removeItem('business_radar_polling_pain_id');
+    }
+  }, [pollingRunId]);
 
   // List of past runs
   const { data: pastRuns, refetch: refetchList } = useQuery({
@@ -242,6 +273,16 @@ export const PainRadarPage: React.FC = () => {
     queryFn: () => apiClient.listPainRadarRuns(),
     refetchInterval: pollingRunId ? 3000 : false,
   });
+
+  // Auto-restore: If user has no viewedRun on screen, auto-load the most recent completed run
+  useEffect(() => {
+    if (!viewedRun && !pollingRunId && pastRuns && pastRuns.length > 0) {
+      const latest = pastRuns[0];
+      if (latest && latest.status === 'completed') {
+        loadPastRun(latest.id);
+      }
+    }
+  }, [pastRuns, viewedRun, pollingRunId]);
 
   // Active run polling - reliably poll every 2.5s while pollingRunId is present
   const { data: activeRun } = useQuery({

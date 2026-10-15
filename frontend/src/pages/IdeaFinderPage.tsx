@@ -536,9 +536,40 @@ export const IdeaFinderPage: React.FC = () => {
   const [nicheNotes, setNicheNotes] = useState('');
   const [targetMarket, setTargetMarket] = useState('India');
   const [analysisMode, setAnalysisMode] = useState<'normal' | 'innovation'>('innovation');
-  const [activeRunId, setActiveRunId] = useState<number | null>(null);
-  const [pollingRunId, setPollingRunId] = useState<number | null>(null);
-  const [viewedRun, setViewedRun] = useState<any>(null);
+  const [activeRunId, setActiveRunId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('business_radar_active_idea_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [pollingRunId, setPollingRunId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('business_radar_polling_idea_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [viewedRun, setViewedRun] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('business_radar_last_idea_run');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist viewedRun so refreshes never lose analysis results
+  useEffect(() => {
+    if (viewedRun) {
+      try {
+        localStorage.setItem('business_radar_last_idea_run', JSON.stringify(viewedRun));
+      } catch (e) {}
+    }
+  }, [viewedRun]);
+
+  // Persist or clean up active polling run ID
+  useEffect(() => {
+    if (pollingRunId) {
+      localStorage.setItem('business_radar_polling_idea_id', String(pollingRunId));
+    } else {
+      localStorage.removeItem('business_radar_polling_idea_id');
+    }
+  }, [pollingRunId]);
 
   // list of past runs
   const { data: pastRuns, refetch: refetchList } = useQuery({
@@ -546,6 +577,16 @@ export const IdeaFinderPage: React.FC = () => {
     queryFn: () => apiClient.listIdeaRuns(),
     refetchInterval: pollingRunId ? 3000 : false,
   });
+
+  // Auto-restore: If user has no viewedRun on screen, auto-load the most recent completed run
+  useEffect(() => {
+    if (!viewedRun && !pollingRunId && pastRuns && pastRuns.length > 0) {
+      const latest = pastRuns[0];
+      if (latest && latest.status === 'completed') {
+        loadPastRun(latest.id);
+      }
+    }
+  }, [pastRuns, viewedRun, pollingRunId]);
 
   // active run status - poll reliably while pollingRunId is present
   const { data: activeRun, refetch: refetchActive } = useQuery({

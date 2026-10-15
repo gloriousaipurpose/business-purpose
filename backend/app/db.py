@@ -19,9 +19,17 @@ try:
 except ImportError:
     _has_psycopg2 = False
 
+from pathlib import Path
+
 # Handle SQLite vs PostgreSQL arguments & URL compatibility
 raw_db_url = settings.DATABASE_URL or "sqlite:///./radar.db"
 db_url = raw_db_url
+
+if db_url.startswith("sqlite:///./") or db_url == "sqlite:///radar.db":
+    db_file_name = db_url.replace("sqlite:///./", "").replace("sqlite:///", "")
+    backend_dir = Path(__file__).resolve().parent.parent
+    abs_db_path = (backend_dir / db_file_name).as_posix()
+    db_url = f"sqlite:///{abs_db_path}"
 
 if db_url.startswith("postgres://") or db_url.startswith("postgresql://"):
     # Strip existing prefix
