@@ -159,16 +159,73 @@ export interface IdeaFinderFinding {
   change_vs_previous: string;
 }
 
+export interface LoveSignalEvidence {
+  id: string;
+  quote: string;
+}
+
+export interface LoveSignal {
+  signal: string;
+  root_desire: string;
+  strength: 'high' | 'medium' | 'low' | string;
+  evidence: LoveSignalEvidence[];
+}
+
+export interface NoveltyEvidence {
+  found: string;
+  url_or_id: string;
+}
+
+export interface InnovationFeasibility {
+  first_version: string;
+  hardest_part: string;
+  needs: string;
+}
+
+export interface InnovationScores {
+  strength_of_love_signal?: IdeaScore;
+  improvement_over_current?: IdeaScore;
+  novelty?: IdeaScore;
+  feasibility?: IdeaScore;
+  willingness_to_pay?: IdeaScore;
+  defensibility?: IdeaScore;
+  india_fit?: IdeaScore;
+  [key: string]: IdeaScore | undefined;
+}
+
+export interface InnovationItem {
+  idea: string;
+  linked_love_signal: string;
+  target_user: string;
+  how_served_today: string;
+  what_is_better: string;
+  lens_used: string;
+  novelty: 'new' | 'partial' | 'exists' | string;
+  novelty_evidence: NoveltyEvidence[];
+  feasibility: InnovationFeasibility;
+  who_pays: string;
+  risks: string[];
+  validation_test: string;
+  scores: InnovationScores;
+  total_score: number;
+  confidence: 'low' | 'medium' | 'high' | string;
+  change_vs_previous: string;
+}
+
 export interface IdeaFinderRun {
   id: number;
   niche: string;
   niche_notes?: string;
   target_market: string;
+  mode?: 'normal' | 'innovation';
   status: 'running' | 'completed' | 'failed';
   result_json?: {
     niche: string;
+    mode?: 'normal' | 'innovation';
     run_summary: string;
-    findings: IdeaFinderFinding[];
+    findings?: IdeaFinderFinding[];
+    love_signals?: LoveSignal[];
+    innovations?: InnovationItem[];
     rejected_ideas: { idea: string; reason: string }[];
     data_gaps: string;
   };
@@ -182,6 +239,7 @@ export interface IdeaFinderRunSummary {
   niche: string;
   niche_notes?: string;
   target_market: string;
+  mode?: 'normal' | 'innovation';
   status: string;
   findings_count: number;
   run_summary: string;

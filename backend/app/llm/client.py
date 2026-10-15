@@ -82,7 +82,8 @@ class LLMClient:
         prompt: str,
         response_schema: Type[T],
         system_prompt: str = "You are a JSON-only response engine. Return strictly valid JSON.",
-        max_retries: int = 4
+        max_retries: int = 4,
+        max_tokens: int = 2500
     ) -> Tuple[T, int, float]:
         """
         Sends prompt to Groq API with JSON mode enabled.
@@ -117,7 +118,7 @@ class LLMClient:
                     messages=messages,
                     response_format={"type": "json_object"},
                     temperature=0.2,
-                    max_tokens=1500
+                    max_tokens=max_tokens
                 )
 
                 usage = response.usage

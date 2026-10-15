@@ -113,9 +113,14 @@ export const apiClient = {
   },
 
   // Idea Finder
-  startIdeaFinder: async (niche: string, niche_notes?: string, target_market?: string) => {
-    const res = await axios.post(`${API_BASE}/idea-finder`, { niche, niche_notes, target_market: target_market || 'India' });
-    return res.data as { run_id: number; message: string; status: string };
+  startIdeaFinder: async (niche: string, niche_notes?: string, target_market?: string, mode: 'normal' | 'innovation' = 'normal') => {
+    const res = await axios.post(`${API_BASE}/idea-finder`, {
+      niche,
+      niche_notes,
+      target_market: target_market || 'India',
+      mode
+    });
+    return res.data as { run_id: number; message: string; status: string; mode?: string };
   },
 
   getIdeaRun: async (runId: number) => {

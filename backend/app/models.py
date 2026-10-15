@@ -127,6 +127,7 @@ class IdeaFinderRun(Base):
     niche = Column(String, nullable=False, index=True)          # e.g. "e-commerce"
     niche_notes = Column(Text, nullable=True)                   # optional extra context
     target_market = Column(String, nullable=False, default="India")
+    mode = Column(String, nullable=False, default="normal")     # "normal" | "innovation"
     status = Column(String, nullable=False, default="running")  # running | completed | failed
     result_json = Column(JSON, nullable=True)                   # full LLM JSON output
     error_text = Column(Text, nullable=True)

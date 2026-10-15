@@ -87,6 +87,13 @@ def ensure_schema_columns():
             if col_names and "likes" not in col_names:
                 conn.execute(text("ALTER TABLE findings ADD COLUMN likes INTEGER NOT NULL DEFAULT 0"))
                 conn.commit()
+
+            # ── idea_finder_runs table columns ──
+            result_runs = conn.execute(text("PRAGMA table_info(idea_finder_runs)")).fetchall()
+            run_col_names = [row[1] for row in result_runs]
+            if run_col_names and "mode" not in run_col_names:
+                conn.execute(text("ALTER TABLE idea_finder_runs ADD COLUMN mode VARCHAR NOT NULL DEFAULT 'normal'"))
+                conn.commit()
     except Exception:
         pass
 
@@ -106,6 +113,15 @@ def ensure_schema_columns():
                 conn.commit()
             if col_names and "likes" not in col_names:
                 conn.execute(text("ALTER TABLE findings ADD COLUMN likes INTEGER NOT NULL DEFAULT 0"))
+                conn.commit()
+
+            result_runs = conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='idea_finder_runs'"
+            )).fetchall()
+            run_col_names = [row[0] for row in result_runs]
+            if run_col_names and "mode" not in run_col_names:
+                conn.execute(text("ALTER TABLE idea_finder_runs ADD COLUMN mode VARCHAR NOT NULL DEFAULT 'normal'"))
                 conn.commit()
     except Exception:
         pass

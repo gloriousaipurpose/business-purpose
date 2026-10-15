@@ -14,11 +14,17 @@ from app.models import Run, Finding, Entity, IdeaFinderRun
 
 # ── In-memory SQLite fixture ──────────────────────────────────────────────────
 
+from sqlalchemy.pool import StaticPool
+
 TEST_DB_URL = "sqlite:///:memory:"
 
 @pytest.fixture(scope="module")
 def test_db_engine():
-    engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        TEST_DB_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -173,6 +179,24 @@ def test_idea_finder_start_valid(client):
     run_data = status_res.json()
     assert run_data["niche"] == "e-commerce"
     assert run_data["status"] in ["running", "completed", "failed"]
+    assert run_data["mode"] == "normal"
+
+def test_idea_finder_start_innovation_mode(client):
+    """POST /idea-finder with mode='innovation' sets mode correctly."""
+    res = client.post("/idea-finder", json={
+        "niche": "fitness",
+        "target_market": "India",
+        "mode": "innovation"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["mode"] == "innovation"
+    run_id = data["run_id"]
+
+    status_res = client.get(f"/idea-finder/{run_id}")
+    assert status_res.status_code == 200
+    run_data = status_res.json()
+    assert run_data["mode"] == "innovation"
 
 # ── 404 behaviour at API level ────────────────────────────────────────────────
 
