@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Lightbulb, Sparkles, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle, XCircle, Clock, Loader2, RotateCcw, Users, DollarSign,
   ShieldAlert, FlaskConical, TrendingUp, Globe, Zap, Target, BarChart3,
-  Heart, Compass
+  Heart, Compass, ArrowLeft, ChevronRight, Plus
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import {
@@ -531,36 +532,37 @@ const LoveSignalsShelf: React.FC<{ signals: LoveSignal[] }> = ({ signals }) => {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export const IdeaFinderPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runIdFromUrl = searchParams.get('run');
+
   const [selectedNiche, setSelectedNiche] = useState('');
   const [customNiche, setCustomNiche] = useState('');
   const [nicheNotes, setNicheNotes] = useState('');
   const [targetMarket, setTargetMarket] = useState('India');
   const [analysisMode, setAnalysisMode] = useState<'normal' | 'innovation'>('innovation');
   const [activeRunId, setActiveRunId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('business_radar_active_idea_id');
-    return saved ? parseInt(saved, 10) : null;
+    return runIdFromUrl ? parseInt(runIdFromUrl, 10) : null;
   });
   const [pollingRunId, setPollingRunId] = useState<number | null>(() => {
     const saved = localStorage.getItem('business_radar_polling_idea_id');
     return saved ? parseInt(saved, 10) : null;
   });
-  const [viewedRun, setViewedRun] = useState<any>(() => {
-    try {
-      const saved = localStorage.getItem('business_radar_last_idea_run');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [viewedRun, setViewedRun] = useState<any>(null);
 
-  // Persist viewedRun so refreshes never lose analysis results
+  // Sync with URL query parameter ?run=...
   useEffect(() => {
-    if (viewedRun) {
-      try {
-        localStorage.setItem('business_radar_last_idea_run', JSON.stringify(viewedRun));
-      } catch (e) {}
+    if (runIdFromUrl) {
+      const id = parseInt(runIdFromUrl, 10);
+      if (!isNaN(id) && (!viewedRun || viewedRun.id !== id)) {
+        setActiveRunId(id);
+        apiClient.getIdeaRun(id).then((run) => {
+          setViewedRun(run);
+        }).catch(err => {
+          console.error('Failed to load idea run from URL:', err);
+        });
+      }
     }
-  }, [viewedRun]);
+  }, [runIdFromUrl]);
 
   // Persist or clean up active polling run ID
   useEffect(() => {
@@ -578,16 +580,6 @@ export const IdeaFinderPage: React.FC = () => {
     refetchInterval: pollingRunId ? 3000 : false,
   });
 
-  // Auto-restore: If user has no viewedRun on screen, auto-load the most recent completed run
-  useEffect(() => {
-    if (!viewedRun && !pollingRunId && pastRuns && pastRuns.length > 0) {
-      const latest = pastRuns[0];
-      if (latest && latest.status === 'completed') {
-        loadPastRun(latest.id);
-      }
-    }
-  }, [pastRuns, viewedRun, pollingRunId]);
-
   // active run status - poll reliably while pollingRunId is present
   const { data: activeRun, refetch: refetchActive } = useQuery({
     queryKey: ['ideaRun', pollingRunId],
@@ -596,12 +588,19 @@ export const IdeaFinderPage: React.FC = () => {
     refetchInterval: pollingRunId !== null ? 2500 : false,
   });
 
-  // When active run finishes, stop polling and show result
+  // When active run finishes, stop polling and show result in detail view
   useEffect(() => {
-    if (activeRun?.status === 'completed' || activeRun?.status === 'failed') {
+    if (activeRun?.status === 'completed') {
       setPollingRunId(null);
       setActiveRunId(activeRun.id);
       setViewedRun(activeRun);
+      setSearchParams({ run: String(activeRun.id) });
+      refetchList();
+    } else if (activeRun?.status === 'failed') {
+      setPollingRunId(null);
+      setActiveRunId(activeRun.id);
+      setViewedRun(activeRun);
+      setSearchParams({ run: String(activeRun.id) });
       refetchList();
     }
   }, [activeRun?.status, activeRun?.id, refetchList]);
@@ -615,6 +614,7 @@ export const IdeaFinderPage: React.FC = () => {
           setPollingRunId(null);
           setActiveRunId(fullRun.id);
           setViewedRun(fullRun);
+          setSearchParams({ run: String(fullRun.id) });
         }).catch(err => {
           console.warn('Failed to load finished idea run:', err);
         });
@@ -629,6 +629,7 @@ export const IdeaFinderPage: React.FC = () => {
       return apiClient.startIdeaFinder(niche, nicheNotes || undefined, targetMarket, analysisMode);
     },
     onSuccess: (data) => {
+      setSearchParams({});
       setPollingRunId(data.run_id);
       setActiveRunId(null);
       setViewedRun(null);
@@ -638,6 +639,7 @@ export const IdeaFinderPage: React.FC = () => {
 
   const displayedRun = viewedRun || (activeRun?.status === 'completed' ? activeRun : null);
   const isRunning = pollingRunId !== null && (activeRun?.status === 'running' || !activeRun);
+  const isDetailView = Boolean((runIdFromUrl || activeRunId) && !isRunning);
 
   // Mode resolution
   const runMode: 'normal' | 'innovation' =
@@ -657,8 +659,9 @@ export const IdeaFinderPage: React.FC = () => {
   const novelInnovationsCount = innovations.filter(i => (i.novelty || '').toLowerCase() === 'new').length;
   const partialInnovationsCount = innovations.filter(i => (i.novelty || '').toLowerCase() === 'partial').length;
 
-  // ── Load a past run and show its results ──────────────────────────────────
+  // ── Load a past run and show its results in breadcrumb detail view ─────────
   const loadPastRun = async (id: number) => {
+    setSearchParams({ run: String(id) });
     setPollingRunId(null);
     setActiveRunId(id);
     setViewedRun(null); // clear while loading
@@ -670,6 +673,254 @@ export const IdeaFinderPage: React.FC = () => {
     }
   };
 
+  const handleBackToFinder = () => {
+    setSearchParams({});
+    setActiveRunId(null);
+    setViewedRun(null);
+  };
+
+  // ── DETAIL VIEW: Only selected result is shown with breadcrumbs ──────────
+  if (isDetailView) {
+    return (
+      <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
+        {/* Breadcrumb Navigation Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#181623] border border-[#29253b] rounded-xl px-4 py-3 shadow-md">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <button
+              onClick={handleBackToFinder}
+              className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 font-medium transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Idea & Innovation Finder</span>
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-[#565375]" />
+            <span className="text-white font-semibold capitalize truncate max-w-[200px] sm:max-w-none">
+              {displayedRun?.niche || 'Analysis Result'}
+            </span>
+            {displayedRun && (
+              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                runMode === 'innovation'
+                  ? 'bg-violet-950 border border-violet-700 text-violet-300'
+                  : 'bg-slate-800 border border-slate-700 text-slate-300'
+              }`}>
+                {runMode === 'innovation' ? 'Innovation Strategy' : 'Gap Analysis'}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBackToFinder}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#211e30] hover:bg-[#2b273f] text-slate-200 border border-[#3b3754] rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>All Analyses</span>
+            </button>
+            <button
+              onClick={() => {
+                if (displayedRun?.niche) setSelectedNiche(displayedRun.niche);
+                handleBackToFinder();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white rounded-lg transition-all shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Analysis</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Loading state for detail view */}
+        {!displayedRun ? (
+          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-12 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+            <p className="text-white text-sm font-medium">Loading analysis report…</p>
+          </div>
+        ) : displayedRun.status === 'failed' ? (
+          /* Failed state */
+          <div className="bg-[#181623] border border-red-800/40 rounded-xl p-8 text-center space-y-3">
+            <XCircle className="w-10 h-10 text-red-400 mx-auto" />
+            <p className="text-white font-semibold text-base">Analysis Failed</p>
+            <p className="text-[#7e7b99] text-xs max-w-md mx-auto">{displayedRun.error_text || 'An error occurred during analysis.'}</p>
+            <button
+              onClick={handleBackToFinder}
+              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all"
+            >
+              Back to Idea Finder
+            </button>
+          </div>
+        ) : displayedRun.result_json ? (
+          /* Successful Result View: ONLY this analysis is displayed */
+          <div className="space-y-4">
+            {/* Summary Bar */}
+            <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-white font-semibold text-base capitalize">
+                      Results for: <span className="text-purple-300">{displayedRun.niche}</span>
+                    </p>
+                    <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-bold ${
+                      runMode === 'innovation'
+                        ? 'bg-violet-950 border border-violet-700 text-violet-300'
+                        : 'bg-slate-800 border border-slate-700 text-slate-300'
+                    }`}>
+                      {runMode === 'innovation' ? 'Innovation Strategy' : 'Gap Analysis'}
+                    </span>
+                  </div>
+                  <p className="text-[#7e7b99] text-[11px]">{displayedRun.target_market} • {new Date(displayedRun.started_at).toLocaleString()}</p>
+                </div>
+
+                {/* Badges depending on mode */}
+                <div className="flex flex-wrap gap-2">
+                  {runMode === 'innovation' ? (
+                    <>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/30 font-semibold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> {novelInnovationsCount} New Novel
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/30 font-semibold">
+                        {partialInnovationsCount} Partial
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-rose-900/40 text-rose-300 border border-rose-700/30 font-semibold flex items-center gap-1">
+                        <Heart className="w-3 h-3" /> {loveSignals.length} Love Signals
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-[#29253b] text-[#a19dbf] border border-[#3b3754] font-semibold">
+                        {innovations.length} Ideas
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/30 font-semibold">
+                        {openCount} open gaps
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/30 font-semibold">
+                        {narrowCount} narrow
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-[#29253b] text-[#a19dbf] border border-[#3b3754] font-semibold">
+                        {findings.length} total
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {displayedRun.result_json.run_summary && (
+                <p className="text-[#a19dbf] text-xs leading-relaxed border-t border-[#29253b] pt-3">
+                  {displayedRun.result_json.run_summary}
+                </p>
+              )}
+            </div>
+
+            {/* ── INNOVATION MODE OUTPUT ── */}
+            {runMode === 'innovation' ? (
+              <>
+                {/* Love Signals & Root Desires */}
+                <LoveSignalsShelf signals={loveSignals} />
+
+                {/* Innovations List */}
+                {innovations.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
+                      {innovations.length} Breakthrough Innovation{innovations.length !== 1 ? 's' : ''} — Ranked by Novelty & Potential
+                    </p>
+                    {([...innovations])
+                      .sort((a, b) => {
+                        const order: Record<string, number> = { new: 0, partial: 1, exists: 2 };
+                        const na = order[(a.novelty || '').toLowerCase()] ?? 3;
+                        const nb = order[(b.novelty || '').toLowerCase()] ?? 3;
+                        if (na !== nb) return na - nb;
+                        return (b.total_score || 0) - (a.total_score || 0);
+                      })
+                      .map((item: InnovationItem, i: number) => (
+                        <InnovationCard key={i} item={item} index={i} />
+                      ))}
+                  </div>
+                ) : (
+                  <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
+                    <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-3" />
+                    <p className="text-white font-semibold text-sm mb-1">No strong innovations found</p>
+                    <p className="text-[#7e7b99] text-xs">
+                      The strategist didn't find unserved ways to serve love in this niche that passed novelty checks. Try adding more context or test another niche.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* ── NORMAL MODE OUTPUT ── */
+              <>
+                {findings.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
+                      {findings.length} Validated Gap{findings.length !== 1 ? 's' : ''} — sorted by gap status
+                    </p>
+                    {([...findings] as IdeaFinderFinding[])
+                      .sort((a: IdeaFinderFinding, b: IdeaFinderFinding) => {
+                        const order: Record<string, number> = { open: 0, narrow: 1, closed: 2 };
+                        return (order[a.gap_status] ?? 3) - (order[b.gap_status] ?? 3);
+                      })
+                      .map((f: IdeaFinderFinding, i: number) => (
+                        <IdeaCard key={i} f={f} index={i} />
+                      ))}
+                  </div>
+                ) : (
+                  <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
+                    <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-3" />
+                    <p className="text-white font-semibold text-sm mb-1">No strong ideas found</p>
+                    <p className="text-[#7e7b99] text-xs">The AI didn't find solid validated gaps in this niche. Try another niche or add more context.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Rejected Ideas */}
+            {rejectedIdeas.length > 0 && (
+              <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
+                <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider mb-3">
+                  🚫 Ideas That Were Checked But Rejected ({rejectedIdeas.length})
+                </p>
+                <div className="space-y-2">
+                  {rejectedIdeas.map((r, i: number) => (
+                    <div key={i} className="flex items-start gap-2.5 bg-[#13111e] border border-[#29253b] rounded-lg p-3">
+                      <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[#a19dbf] text-xs font-medium">{r.idea}</p>
+                        <p className="text-[#7e7b99] text-[11px] mt-0.5">Reason: {r.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Data Gaps */}
+            {displayedRun.result_json.data_gaps && (
+              <div className="bg-[#181623] border border-amber-800/30 rounded-xl p-4">
+                <p className="text-amber-300 text-[11px] font-semibold uppercase tracking-wider mb-1.5">
+                  ⚠️ What Evidence Is Still Missing
+                </p>
+                <p className="text-[#a19dbf] text-xs leading-relaxed">{displayedRun.result_json.data_gaps}</p>
+              </div>
+            )}
+
+            {/* Bottom Back Button */}
+            <div className="pt-4 flex justify-between items-center border-t border-[#29253b]">
+              <button
+                onClick={handleBackToFinder}
+                className="flex items-center gap-2 text-xs text-[#a19dbf] hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to All Previous Runs
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
+            <p className="text-[#7e7b99] text-xs">No result data available for this run.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── FINDER / HUB VIEW: Input Form & Past Runs List ──────────────────────────
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
 
@@ -860,192 +1111,31 @@ export const IdeaFinderPage: React.FC = () => {
         </div>
       )}
 
-      {/* Results */}
-      {displayedRun?.status === 'completed' && displayedRun.result_json && (
-        <div className="space-y-4">
-          {/* Summary Bar */}
-          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-white font-semibold text-sm capitalize">
-                    Results for: <span className="text-purple-300">{displayedRun.niche}</span>
-                  </p>
-                  <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-bold ${
-                    runMode === 'innovation'
-                      ? 'bg-violet-950 border border-violet-700 text-violet-300'
-                      : 'bg-slate-800 border border-slate-700 text-slate-300'
-                  }`}>
-                    {runMode === 'innovation' ? 'Innovation Strategy' : 'Gap Analysis'}
-                  </span>
-                </div>
-                <p className="text-[#7e7b99] text-[11px]">{displayedRun.target_market} • {new Date(displayedRun.started_at).toLocaleString()}</p>
-              </div>
-
-              {/* Badges depending on mode */}
-              <div className="flex flex-wrap gap-2">
-                {runMode === 'innovation' ? (
-                  <>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/30 font-semibold flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> {novelInnovationsCount} New Novel
-                    </span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/30 font-semibold">
-                      {partialInnovationsCount} Partial
-                    </span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-900/40 text-rose-300 border border-rose-700/30 font-semibold flex items-center gap-1">
-                      <Heart className="w-3 h-3" /> {loveSignals.length} Love Signals
-                    </span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-[#29253b] text-[#a19dbf] border border-[#3b3754] font-semibold">
-                      {innovations.length} Ideas
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/30 font-semibold">
-                      {openCount} open gaps
-                    </span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/30 font-semibold">
-                      {narrowCount} narrow
-                    </span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-[#29253b] text-[#a19dbf] border border-[#3b3754] font-semibold">
-                      {findings.length} total
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {displayedRun.result_json.run_summary && (
-              <p className="text-[#a19dbf] text-xs leading-relaxed border-t border-[#29253b] pt-3">
-                {displayedRun.result_json.run_summary}
-              </p>
-            )}
-          </div>
-
-          {/* ── INNOVATION MODE OUTPUT ── */}
-          {runMode === 'innovation' ? (
-            <>
-              {/* Love Signals & Root Desires */}
-              <LoveSignalsShelf signals={loveSignals} />
-
-              {/* Innovations List */}
-              {innovations.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
-                    {innovations.length} Breakthrough Innovation{innovations.length !== 1 ? 's' : ''} — Ranked by Novelty & Potential
-                  </p>
-                  {([...innovations])
-                    .sort((a, b) => {
-                      const order: Record<string, number> = { new: 0, partial: 1, exists: 2 };
-                      const na = order[(a.novelty || '').toLowerCase()] ?? 3;
-                      const nb = order[(b.novelty || '').toLowerCase()] ?? 3;
-                      if (na !== nb) return na - nb;
-                      return (b.total_score || 0) - (a.total_score || 0);
-                    })
-                    .map((item: InnovationItem, i: number) => (
-                      <InnovationCard key={i} item={item} index={i} />
-                    ))}
-                </div>
-              ) : (
-                <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
-                  <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-3" />
-                  <p className="text-white font-semibold text-sm mb-1">No strong innovations found</p>
-                  <p className="text-[#7e7b99] text-xs">
-                    The strategist didn't find unserved ways to serve love in this niche that passed novelty checks. Try adding more context or test another niche.
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
-            /* ── NORMAL MODE OUTPUT ── */
-            <>
-              {findings.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
-                    {findings.length} Validated Gap{findings.length !== 1 ? 's' : ''} — sorted by gap status
-                  </p>
-                  {([...findings] as IdeaFinderFinding[])
-                    .sort((a: IdeaFinderFinding, b: IdeaFinderFinding) => {
-                      const order: Record<string, number> = { open: 0, narrow: 1, closed: 2 };
-                      return (order[a.gap_status] ?? 3) - (order[b.gap_status] ?? 3);
-                    })
-                    .map((f: IdeaFinderFinding, i: number) => (
-                      <IdeaCard key={i} f={f} index={i} />
-                    ))}
-                </div>
-              ) : (
-                <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
-                  <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-3" />
-                  <p className="text-white font-semibold text-sm mb-1">No strong ideas found</p>
-                  <p className="text-[#7e7b99] text-xs">The AI didn't find solid validated gaps in this niche. Try another niche or add more context.</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Rejected Ideas */}
-          {rejectedIdeas.length > 0 && (
-            <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
-              <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider mb-3">
-                🚫 Ideas That Were Checked But Rejected ({rejectedIdeas.length})
-              </p>
-              <div className="space-y-2">
-                {rejectedIdeas.map((r, i: number) => (
-                  <div key={i} className="flex items-start gap-2.5 bg-[#13111e] border border-[#29253b] rounded-lg p-3">
-                    <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[#a19dbf] text-xs font-medium">{r.idea}</p>
-                      <p className="text-[#7e7b99] text-[11px] mt-0.5">Reason: {r.reason}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Data Gaps */}
-          {displayedRun.result_json.data_gaps && (
-            <div className="bg-[#181623] border border-amber-800/30 rounded-xl p-4">
-              <p className="text-amber-300 text-[11px] font-semibold uppercase tracking-wider mb-1.5">
-                ⚠️ What Evidence Is Still Missing
-              </p>
-              <p className="text-[#a19dbf] text-xs leading-relaxed">{displayedRun.result_json.data_gaps}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Failed state */}
-      {displayedRun?.status === 'failed' && (
-        <div className="bg-[#181623] border border-red-800/40 rounded-xl p-6 text-center">
-          <XCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
-          <p className="text-white font-semibold text-sm mb-1">Analysis Failed</p>
-          <p className="text-[#7e7b99] text-xs">{displayedRun.error_text || 'Unknown error. Please try again.'}</p>
-        </div>
-      )}
-
       {/* Past Runs */}
       {pastRuns && pastRuns.length > 0 && (
         <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
-          <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider mb-3">
-            <Clock className="w-3.5 h-3.5 inline mr-1" /> Previous Idea & Innovation Runs
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
+              <Clock className="w-3.5 h-3.5 inline mr-1" /> Previous Idea & Innovation Runs ({pastRuns.length})
+            </p>
+            <span className="text-[10px] text-[#7e7b99]">Click any run to view in dedicated view</span>
+          </div>
           <div className="space-y-2">
             {pastRuns.map(r => (
               <button
                 key={r.id}
                 onClick={() => loadPastRun(r.id)}
-                className={`w-full flex items-center justify-between gap-3 bg-[#13111e] border rounded-lg px-3 py-2.5 hover:border-[#3b3754] transition-colors text-left ${
+                className={`w-full flex items-center justify-between gap-3 bg-[#13111e] border rounded-xl px-4 py-3 hover:border-purple-500/50 hover:bg-[#161426] transition-all text-left group ${
                   (activeRunId === r.id || pollingRunId === r.id) ? 'border-purple-600/60' : 'border-[#29253b]'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
                   {r.status === 'completed' ? <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" /> :
                    r.status === 'running'   ? <Loader2 className="w-4 h-4 text-purple-300 animate-spin shrink-0" /> :
                                               <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-white text-xs font-semibold capitalize truncate">{r.niche}</p>
+                      <p className="text-white text-xs font-semibold capitalize truncate group-hover:text-purple-200 transition-colors">{r.niche}</p>
                       <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${
                         r.mode === 'innovation'
                           ? 'bg-violet-950 border border-violet-800 text-violet-300'
@@ -1054,12 +1144,15 @@ export const IdeaFinderPage: React.FC = () => {
                         {r.mode === 'innovation' ? 'Innovation' : 'Gap Finder'}
                       </span>
                     </div>
-                    <p className="text-[#7e7b99] text-[10px]">
+                    <p className="text-[#7e7b99] text-[11px] mt-0.5">
                       {r.target_market} • {r.findings_count} ideas • {new Date(r.started_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <RotateCcw className="w-3.5 h-3.5 text-[#7e7b99] shrink-0" />
+                <div className="flex items-center gap-1.5 text-xs font-medium text-[#7e7b99] group-hover:text-purple-300 transition-colors shrink-0">
+                  <span>View Results</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
             ))}
           </div>

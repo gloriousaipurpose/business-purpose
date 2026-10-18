@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle, Sparkles, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle, XCircle, Clock, Loader2, RotateCcw, Users, DollarSign,
   ShieldAlert, FlaskConical, TrendingUp, Globe, Zap, Target, BarChart3,
-  Layers, Compass, Search, Filter, HelpCircle, ShieldCheck
+  Layers, Compass, Search, Filter, HelpCircle, ShieldCheck,
+  ArrowLeft, ChevronRight, Plus
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import {
@@ -227,11 +229,15 @@ const TriangulatedPainCard: React.FC<{ p: TriangulatedPainPoint; index: number }
 // ── Main Pain Points Radar Page ───────────────────────────────────────────────
 export const PainRadarPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runIdFromUrl = searchParams.get('run');
+
   const [selectedNiche, setSelectedNiche] = useState('e-commerce');
   const [customNiche, setCustomNiche] = useState('');
   const [nicheNotes, setNicheNotes] = useState('');
   const [targetMarket, setTargetMarket] = useState('India');
   const [activeRunId, setActiveRunId] = useState<number | null>(() => {
+    if (runIdFromUrl) return parseInt(runIdFromUrl, 10);
     const saved = localStorage.getItem('business_radar_active_pain_id');
     return saved ? parseInt(saved, 10) : null;
   });
@@ -274,16 +280,6 @@ export const PainRadarPage: React.FC = () => {
     refetchInterval: pollingRunId ? 3000 : false,
   });
 
-  // Auto-restore: If user has no viewedRun on screen, auto-load the most recent completed run
-  useEffect(() => {
-    if (!viewedRun && !pollingRunId && pastRuns && pastRuns.length > 0) {
-      const latest = pastRuns[0];
-      if (latest && latest.status === 'completed') {
-        loadPastRun(latest.id);
-      }
-    }
-  }, [pastRuns, viewedRun, pollingRunId]);
-
   // Active run polling - reliably poll every 2.5s while pollingRunId is present
   const { data: activeRun } = useQuery({
     queryKey: ['painRadarRun', pollingRunId],
@@ -298,11 +294,41 @@ export const PainRadarPage: React.FC = () => {
     queryFn: () => apiClient.getSourcePerformance(),
   });
 
+  const loadPastRun = async (id: number) => {
+    setSearchParams({ run: String(id) });
+    setPollingRunId(null);
+    setActiveRunId(id);
+    setViewedRun(null);
+    try {
+      const run = await apiClient.getPainRadarRun(id);
+      setViewedRun(run);
+    } catch (e) {
+      console.error('Failed to load past pain radar run', e);
+    }
+  };
+
+  // Sync run from URL if navigated or linked directly
+  useEffect(() => {
+    if (runIdFromUrl) {
+      const numericId = parseInt(runIdFromUrl, 10);
+      if (!isNaN(numericId) && numericId !== activeRunId) {
+        loadPastRun(numericId);
+      }
+    }
+  }, [runIdFromUrl]);
+
+  const handleBackToRadar = () => {
+    setSearchParams({});
+    setActiveRunId(null);
+    setViewedRun(null);
+  };
+
   useEffect(() => {
     if (activeRun?.status === 'completed' || activeRun?.status === 'failed') {
       setPollingRunId(null);
       setActiveRunId(activeRun.id);
       setViewedRun(activeRun);
+      setSearchParams({ run: String(activeRun.id) });
       refetchList();
     }
   }, [activeRun?.status, activeRun?.id, refetchList]);
@@ -316,6 +342,7 @@ export const PainRadarPage: React.FC = () => {
           setPollingRunId(null);
           setActiveRunId(fullRun.id);
           setViewedRun(fullRun);
+          setSearchParams({ run: String(fullRun.id) });
         }).catch(err => {
           console.warn('Failed to load finished pain radar run:', err);
         });
@@ -330,6 +357,7 @@ export const PainRadarPage: React.FC = () => {
       return apiClient.startPainRadar(niche, nicheNotes || undefined, targetMarket);
     },
     onSuccess: (data) => {
+      setSearchParams({});
       setPollingRunId(data.run_id);
       setActiveRunId(null);
       setViewedRun(null);
@@ -337,25 +365,304 @@ export const PainRadarPage: React.FC = () => {
     },
   });
 
-  const loadPastRun = async (id: number) => {
-    setPollingRunId(null);
-    setActiveRunId(id);
-    setViewedRun(null);
-    try {
-      const run = await apiClient.getPainRadarRun(id);
-      setViewedRun(run);
-    } catch (e) {
-      console.error('Failed to load past pain radar run', e);
-    }
-  };
-
   const displayedRun = viewedRun || (activeRun?.status === 'completed' ? activeRun : null);
   const isRunning = pollingRunId !== null && (activeRun?.status === 'running' || !activeRun);
+  const isDetailView = Boolean((runIdFromUrl || activeRunId) && !isRunning);
 
   const painPoints: TriangulatedPainPoint[] = (displayedRun?.result_json?.pain_points || []) as TriangulatedPainPoint[];
   const verifiedCount = painPoints.filter(p => (p.verification || '').toLowerCase() === 'verified').length;
   const unverifiedCount = painPoints.length - verifiedCount;
   const strategistPlan = displayedRun?.strategist_plan;
+
+  // ── DETAIL VIEW: Only selected result is shown with breadcrumbs ──────────
+  if (isDetailView) {
+    return (
+      <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
+        {/* Breadcrumb Navigation Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#181623] border border-[#29253b] rounded-xl px-4 py-3 shadow-md">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <button
+              onClick={handleBackToRadar}
+              className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 font-medium transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Pain Points Radar</span>
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-[#565375]" />
+            <span className="text-white font-semibold capitalize truncate max-w-[200px] sm:max-w-none">
+              {displayedRun?.niche || 'Analysis Result'}
+            </span>
+            {displayedRun && (
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-rose-950 border border-rose-800 text-rose-300">
+                Triangulated Pain
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBackToRadar}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#211e30] hover:bg-[#2b273f] text-slate-200 border border-[#3b3754] rounded-lg transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>All Analyses</span>
+            </button>
+            <button
+              onClick={() => {
+                if (displayedRun?.niche) setSelectedNiche(displayedRun.niche);
+                handleBackToRadar();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-rose-600 to-purple-700 hover:from-rose-500 hover:to-purple-600 text-white rounded-lg transition-all shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Analysis</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Loading state for detail view */}
+        {!displayedRun ? (
+          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-12 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+            <p className="text-white text-sm font-medium">Loading analysis report…</p>
+          </div>
+        ) : displayedRun.status === 'failed' ? (
+          <div className="bg-[#181623] border border-red-800/40 rounded-xl p-8 text-center space-y-3">
+            <XCircle className="w-10 h-10 text-red-400 mx-auto" />
+            <p className="text-white font-semibold text-base">Analysis Failed</p>
+            <p className="text-[#7e7b99] text-xs max-w-md mx-auto">{displayedRun.error_text || 'An error occurred during analysis.'}</p>
+            <button
+              onClick={handleBackToRadar}
+              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-all"
+            >
+              Back to Radar Hub
+            </button>
+          </div>
+        ) : displayedRun.result_json ? (
+          <div className="space-y-4">
+            {/* Summary Banner */}
+            <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-white font-bold text-sm capitalize">
+                    Triangulated Pain Results for: <span className="text-purple-300">{displayedRun.niche}</span>
+                  </p>
+                  <p className="text-[#7e7b99] text-[11px]">
+                    {displayedRun.target_market} • {displayedRun.collected_items_count || 0} raw items analyzed • {new Date(displayedRun.started_at).toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-600/50 text-emerald-300 font-bold flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> {verifiedCount} Verified
+                  </span>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-medium">
+                    {unverifiedCount} Unverified
+                  </span>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-purple-950 border border-purple-800 text-purple-300 font-medium">
+                    {painPoints.length} Total
+                  </span>
+                </div>
+              </div>
+
+              {displayedRun.result_json.run_summary && (
+                <p className="text-[#a19dbf] text-xs leading-relaxed border-t border-[#29253b] pt-3">
+                  {displayedRun.result_json.run_summary}
+                </p>
+              )}
+
+              {/* Navigation Tabs */}
+              <div className="flex items-center gap-2 border-t border-[#29253b] pt-3 mt-3">
+                <button
+                  onClick={() => setActiveTab('pain_points')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    activeTab === 'pain_points'
+                      ? 'bg-purple-900/60 text-white border border-purple-600/50'
+                      : 'text-[#7e7b99] hover:text-white'
+                  }`}
+                >
+                  Triangulated Pain Points ({painPoints.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('strategist_plan')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    activeTab === 'strategist_plan'
+                      ? 'bg-purple-900/60 text-white border border-purple-600/50'
+                      : 'text-[#7e7b99] hover:text-white'
+                  }`}
+                >
+                  🧠 Strategist Plan & Blind Spots
+                </button>
+                <button
+                  onClick={() => setActiveTab('sources_perf')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    activeTab === 'sources_perf'
+                      ? 'bg-purple-900/60 text-white border border-purple-600/50'
+                      : 'text-[#7e7b99] hover:text-white'
+                  }`}
+                >
+                  📊 Source Scoreboard
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: Pain Points Gallery */}
+            {activeTab === 'pain_points' && (
+              <div className="space-y-3">
+                {painPoints.length > 0 ? (
+                  painPoints.map((p, i) => (
+                    <TriangulatedPainCard key={i} p={p} index={i} />
+                  ))
+                ) : (
+                  <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
+                    <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-2" />
+                    <p className="text-white font-semibold text-sm">No corroborated pain points found</p>
+                    <p className="text-[#7e7b99] text-xs">Try selecting a different niche or adding more context notes.</p>
+                  </div>
+                )}
+
+                {/* Data Gaps */}
+                {displayedRun.result_json.data_gaps && (
+                  <div className="bg-[#181623] border border-amber-800/30 rounded-xl p-4">
+                    <p className="text-amber-300 text-[11px] font-semibold uppercase tracking-wider mb-1">
+                      ⚠️ Missing Evidence / Data Gaps
+                    </p>
+                    <p className="text-[#a19dbf] text-xs leading-relaxed">{displayedRun.result_json.data_gaps}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Strategist Plan & Blind Spots */}
+            {activeTab === 'strategist_plan' && strategistPlan && (
+              <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5 space-y-4">
+                <div>
+                  <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-2">
+                    🧠 Strategist Pain Hypotheses
+                  </h3>
+                  <div className="space-y-1">
+                    {(strategistPlan.pain_hypotheses || []).map((hypo: string, i: number) => (
+                      <div key={i} className="flex items-start gap-2 bg-[#13111e] border border-[#29253b] rounded-lg p-2.5 text-xs text-[#c9c5e8]">
+                        <span className="text-purple-400 font-bold">•</span>
+                        <span>{hypo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-2">
+                    Source Portfolio Allocation (70% Proven / 20% Untested / 10% Exploratory)
+                  </h3>
+                  <div className="space-y-2">
+                    {(strategistPlan.source_plan || []).map((sp: SourcePlanItem, i: number) => (
+                      <div key={i} className="bg-[#13111e] border border-[#29253b] rounded-lg p-3 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white uppercase text-[11px]">{sp.source}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300 font-medium capitalize">
+                              {sp.category}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                              {sp.signal_type}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[#a19dbf] text-[11px]">{sp.reason}</p>
+                        {sp.queries && sp.queries.length > 0 && (
+                          <div className="text-[10px] text-[#7e7b99]">
+                            <span className="font-medium text-purple-400">Queries: </span>
+                            {sp.queries.join(' • ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {strategistPlan.blind_spots && (
+                  <div className="bg-rose-950/20 border border-rose-900/30 rounded-lg p-3 text-xs">
+                    <p className="text-rose-300 font-semibold text-[11px] uppercase tracking-wider mb-1">
+                      Honest Blind Spots
+                    </p>
+                    <p className="text-[#d8b4c6] leading-relaxed">{strategistPlan.blind_spots}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: Source Scoreboard & Learning Loop */}
+            {activeTab === 'sources_perf' && (
+              <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5 space-y-3">
+                <div>
+                  <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-1">
+                    Source Performance & Learning Scoreboard
+                  </h3>
+                  <p className="text-[#7e7b99] text-[11px]">
+                    Tracks useful findings vs noise level over time so the Strategist agent makes smarter source allocations.
+                  </p>
+                </div>
+
+                {sourcePerf && sourcePerf.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#29253b] text-[#7e7b99] text-[10px] uppercase">
+                          <th className="py-2 px-3">Source</th>
+                          <th className="py-2 px-3">Niche</th>
+                          <th className="py-2 px-3">Useful Findings</th>
+                          <th className="py-2 px-3">Noise Level</th>
+                          <th className="py-2 px-3">Last Run</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#29253b]">
+                        {sourcePerf.map((sp: SourcePerformanceRecord) => (
+                          <tr key={sp.id} className="hover:bg-[#13111e]">
+                            <td className="py-2.5 px-3 font-semibold text-white">{sp.source}</td>
+                            <td className="py-2.5 px-3 text-[#a19dbf] capitalize">{sp.niche}</td>
+                            <td className="py-2.5 px-3 text-emerald-400 font-bold">{sp.useful_count}</td>
+                            <td className="py-2.5 px-3">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase font-medium ${
+                                sp.noise_level === 'low' ? 'text-emerald-400 border-emerald-800' :
+                                sp.noise_level === 'high' ? 'text-rose-400 border-rose-800' : 'text-amber-400 border-amber-800'
+                              }`}>
+                                {sp.noise_level}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-[#7e7b99] text-[10px]">
+                              {new Date(sp.last_run_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-[#7e7b99] text-xs py-4 text-center">No source performance records yet. Runs will populate this table automatically.</p>
+                )}
+              </div>
+            )}
+
+            {/* Bottom Back Button */}
+            <div className="pt-4 flex justify-between items-center border-t border-[#29253b]">
+              <button
+                onClick={handleBackToRadar}
+                className="flex items-center gap-2 text-xs text-[#a19dbf] hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to All Previous Runs
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
+            <p className="text-[#7e7b99] text-xs">No result data available for this run.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── RADAR HUB VIEW: Input Form & Past Runs List ──────────────────────────────
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
@@ -479,241 +786,39 @@ export const PainRadarPage: React.FC = () => {
         </div>
       )}
 
-      {/* Results View */}
-      {displayedRun?.status === 'completed' && displayedRun.result_json && (
-        <div className="space-y-4">
-          {/* Summary Banner */}
-          <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div>
-                <p className="text-white font-bold text-sm capitalize">
-                  Triangulated Pain Results for: <span className="text-purple-300">{displayedRun.niche}</span>
-                </p>
-                <p className="text-[#7e7b99] text-[11px]">
-                  {displayedRun.target_market} • {displayedRun.collected_items_count || 0} raw items analyzed • {new Date(displayedRun.started_at).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-600/50 text-emerald-300 font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> {verifiedCount} Verified
-                </span>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-medium">
-                  {unverifiedCount} Unverified
-                </span>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-purple-950 border border-purple-800 text-purple-300 font-medium">
-                  {painPoints.length} Total
-                </span>
-              </div>
-            </div>
-
-            {displayedRun.result_json.run_summary && (
-              <p className="text-[#a19dbf] text-xs leading-relaxed border-t border-[#29253b] pt-3">
-                {displayedRun.result_json.run_summary}
-              </p>
-            )}
-
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-2 border-t border-[#29253b] pt-3 mt-3">
-              <button
-                onClick={() => setActiveTab('pain_points')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  activeTab === 'pain_points'
-                    ? 'bg-purple-900/60 text-white border border-purple-600/50'
-                    : 'text-[#7e7b99] hover:text-white'
-                }`}
-              >
-                Triangulated Pain Points ({painPoints.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('strategist_plan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  activeTab === 'strategist_plan'
-                    ? 'bg-purple-900/60 text-white border border-purple-600/50'
-                    : 'text-[#7e7b99] hover:text-white'
-                }`}
-              >
-                🧠 Strategist Plan & Blind Spots
-              </button>
-              <button
-                onClick={() => setActiveTab('sources_perf')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  activeTab === 'sources_perf'
-                    ? 'bg-purple-900/60 text-white border border-purple-600/50'
-                    : 'text-[#7e7b99] hover:text-white'
-                }`}
-              >
-                📊 Source Scoreboard
-              </button>
-            </div>
-          </div>
-
-          {/* TAB 1: Pain Points Gallery */}
-          {activeTab === 'pain_points' && (
-            <div className="space-y-3">
-              {painPoints.length > 0 ? (
-                painPoints.map((p, i) => (
-                  <TriangulatedPainCard key={i} p={p} index={i} />
-                ))
-              ) : (
-                <div className="bg-[#181623] border border-[#29253b] rounded-xl p-8 text-center">
-                  <XCircle className="w-10 h-10 text-[#7e7b99] mx-auto mb-2" />
-                  <p className="text-white font-semibold text-sm">No corroborated pain points found</p>
-                  <p className="text-[#7e7b99] text-xs">Try selecting a different niche or adding more context notes.</p>
-                </div>
-              )}
-
-              {/* Data Gaps */}
-              {displayedRun.result_json.data_gaps && (
-                <div className="bg-[#181623] border border-amber-800/30 rounded-xl p-4">
-                  <p className="text-amber-300 text-[11px] font-semibold uppercase tracking-wider mb-1">
-                    ⚠️ Missing Evidence / Data Gaps
-                  </p>
-                  <p className="text-[#a19dbf] text-xs leading-relaxed">{displayedRun.result_json.data_gaps}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: Strategist Plan & Blind Spots */}
-          {activeTab === 'strategist_plan' && strategistPlan && (
-            <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5 space-y-4">
-              <div>
-                <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-2">
-                  🧠 Strategist Pain Hypotheses
-                </h3>
-                <div className="space-y-1">
-                  {(strategistPlan.pain_hypotheses || []).map((hypo: string, i: number) => (
-                    <div key={i} className="flex items-start gap-2 bg-[#13111e] border border-[#29253b] rounded-lg p-2.5 text-xs text-[#c9c5e8]">
-                      <span className="text-purple-400 font-bold">•</span>
-                      <span>{hypo}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-2">
-                  Source Portfolio Allocation (70% Proven / 20% Untested / 10% Exploratory)
-                </h3>
-                <div className="space-y-2">
-                  {(strategistPlan.source_plan || []).map((sp: SourcePlanItem, i: number) => (
-                    <div key={i} className="bg-[#13111e] border border-[#29253b] rounded-lg p-3 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white uppercase text-[11px]">{sp.source}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300 font-medium capitalize">
-                            {sp.category}
-                          </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
-                            {sp.signal_type}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-[#a19dbf] text-[11px]">{sp.reason}</p>
-                      {sp.queries && sp.queries.length > 0 && (
-                        <div className="text-[10px] text-[#7e7b99]">
-                          <span className="font-medium text-purple-400">Queries: </span>
-                          {sp.queries.join(' • ')}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {strategistPlan.blind_spots && (
-                <div className="bg-rose-950/20 border border-rose-900/30 rounded-lg p-3 text-xs">
-                  <p className="text-rose-300 font-semibold text-[11px] uppercase tracking-wider mb-1">
-                    Honest Blind Spots
-                  </p>
-                  <p className="text-[#d8b4c6] leading-relaxed">{strategistPlan.blind_spots}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: Source Scoreboard & Learning Loop */}
-          {activeTab === 'sources_perf' && (
-            <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5 space-y-3">
-              <div>
-                <h3 className="text-white font-semibold text-xs uppercase tracking-wider mb-1">
-                  Source Performance & Learning Scoreboard
-                </h3>
-                <p className="text-[#7e7b99] text-[11px]">
-                  Tracks useful findings vs noise level over time so the Strategist agent makes smarter source allocations.
-                </p>
-              </div>
-
-              {sourcePerf && sourcePerf.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-[#29253b] text-[#7e7b99] text-[10px] uppercase">
-                        <th className="py-2 px-3">Source</th>
-                        <th className="py-2 px-3">Niche</th>
-                        <th className="py-2 px-3">Useful Findings</th>
-                        <th className="py-2 px-3">Noise Level</th>
-                        <th className="py-2 px-3">Last Run</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#29253b]">
-                      {sourcePerf.map((sp: SourcePerformanceRecord) => (
-                        <tr key={sp.id} className="hover:bg-[#13111e]">
-                          <td className="py-2.5 px-3 font-semibold text-white">{sp.source}</td>
-                          <td className="py-2.5 px-3 text-[#a19dbf] capitalize">{sp.niche}</td>
-                          <td className="py-2.5 px-3 text-emerald-400 font-bold">{sp.useful_count}</td>
-                          <td className="py-2.5 px-3">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase font-medium ${
-                              sp.noise_level === 'low' ? 'text-emerald-400 border-emerald-800' :
-                              sp.noise_level === 'high' ? 'text-rose-400 border-rose-800' : 'text-amber-400 border-amber-800'
-                            }`}>
-                              {sp.noise_level}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-[#7e7b99] text-[10px]">
-                            {new Date(sp.last_run_at).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-[#7e7b99] text-xs py-4 text-center">No source performance records yet. Runs will populate this table automatically.</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Past Runs Drawer */}
       {pastRuns && pastRuns.length > 0 && (
         <div className="bg-[#181623] border border-[#29253b] rounded-xl p-4 sm:p-5">
-          <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider mb-3">
-            <Clock className="w-3.5 h-3.5 inline mr-1" /> Previous Pain Points Radar Runs
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[#7e7b99] text-[11px] font-semibold uppercase tracking-wider">
+              <Clock className="w-3.5 h-3.5 inline mr-1" /> Previous Pain Points Radar Runs ({pastRuns.length})
+            </p>
+            <span className="text-[10px] text-[#7e7b99]">Click any run to view in dedicated view</span>
+          </div>
           <div className="space-y-2">
             {pastRuns.map((r: PainRadarRunSummary) => (
               <button
                 key={r.id}
                 onClick={() => loadPastRun(r.id)}
-                className={`w-full flex items-center justify-between gap-3 bg-[#13111e] border rounded-lg px-3 py-2.5 hover:border-[#3b3754] transition-colors text-left ${
+                className={`w-full flex items-center justify-between gap-3 bg-[#13111e] border rounded-xl px-4 py-3 hover:border-purple-500/50 hover:bg-[#161426] transition-all text-left group ${
                   (activeRunId === r.id || pollingRunId === r.id) ? 'border-purple-600/60' : 'border-[#29253b]'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
                   {r.status === 'completed' ? <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" /> :
                    r.status === 'running'   ? <Loader2 className="w-4 h-4 text-purple-300 animate-spin shrink-0" /> :
                                               <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
                   <div className="min-w-0">
-                    <p className="text-white text-xs font-semibold capitalize truncate">{r.niche}</p>
-                    <p className="text-[#7e7b99] text-[10px]">
+                    <p className="text-white text-xs font-semibold capitalize truncate group-hover:text-purple-200 transition-colors">{r.niche}</p>
+                    <p className="text-[#7e7b99] text-[11px] mt-0.5">
                       {r.target_market} • {r.verified_count} verified ({r.pain_points_count} total) • {new Date(r.started_at || '').toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <RotateCcw className="w-3.5 h-3.5 text-[#7e7b99] shrink-0" />
+                <div className="flex items-center gap-1.5 text-xs font-medium text-[#7e7b99] group-hover:text-purple-300 transition-colors shrink-0">
+                  <span>View Results</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
             ))}
           </div>
