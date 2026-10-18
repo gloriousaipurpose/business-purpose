@@ -198,6 +198,11 @@ STEPS
     never on how exciting the idea sounds.
 11. DEDUPE against the previous run: NEW / REPEATED / STRONGER / WEAKER /
     DISAPPEARED.
+12. OUTPUT CONSTRAINTS (STRICT):
+    - Output exactly 2 to 3 breakthrough innovations (maximum 3). Focus on the highest quality.
+    - Keep each text field (what_is_better, target_user, who_pays, etc.) to 1-2 punchy sentences.
+    - Each score reason must be 1 short sentence.
+    - Keep total JSON compact and complete without truncation.
 
 OUTPUT: valid JSON only, in this shape:
 {{
@@ -359,7 +364,7 @@ async def _run_idea_analysis(run_id: int, niche: str, niche_notes: str, target_m
                         "Ground every claim in evidence and novelty checks."
                     ),
                     max_retries=4,
-                    max_tokens=3000
+                    max_tokens=6500
                 )
                 innovations = result.innovations or []
                 for item in innovations:
@@ -392,7 +397,7 @@ async def _run_idea_analysis(run_id: int, niche: str, niche_notes: str, target_m
                         "Be honest about what you don't know."
                     ),
                     max_retries=4,
-                    max_tokens=2500
+                    max_tokens=4000
                 )
                 findings = result.findings or []
                 for f in findings:

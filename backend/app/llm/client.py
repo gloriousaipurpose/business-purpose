@@ -1,7 +1,8 @@
 import logging
 import json
 import asyncio
-from typing import Type, TypeVar, Optional, Tuple, List
+import re
+from typing import Type, TypeVar, Optional, Tuple, List, Dict, Any
 from pydantic import BaseModel
 from app.config import settings
 
@@ -18,6 +19,74 @@ AVAILABLE_GROQ_MODELS = [
     "openai/gpt-oss-20b",
     "qwen/qwen3.8-27b"
 ]
+
+
+def attempt_repair_truncated_json(raw: str) -> Optional[dict]:
+    """
+    Attempts to salvage valid dictionary data from a truncated JSON string,
+    such as when the LLM generation stops prematurely due to max_tokens limit.
+    """
+    if not raw or not isinstance(raw, str):
+        return None
+
+    # First test if it is already parseable
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+
+    # Walk backwards looking for structural delimiters (object end or element comma)
+    for i in range(len(raw) - 1, 0, -1):
+        ch = raw[i]
+        if ch in ('}', ','):
+            prefix = raw[:i+1] if ch == '}' else raw[:i]
+            prefix = prefix.rstrip()
+            for closing in [']}', '}', '}}', ']}}', ']}']:
+                candidate = prefix + closing
+                try:
+                    data = json.loads(candidate)
+                    if isinstance(data, dict):
+                        return data
+                except Exception:
+                    continue
+    return None
+
+
+def extract_failed_generation_from_error(e: Exception) -> Optional[str]:
+    """Extracts failed_generation string from Groq API error object if present."""
+    # Method 1: e.body dictionary
+    body = getattr(e, 'body', None)
+    if isinstance(body, dict):
+        err = body.get('error', {})
+        if isinstance(err, dict) and 'failed_generation' in err:
+            return err['failed_generation']
+
+    # Method 2: e.response.json()
+    resp = getattr(e, 'response', None)
+    if resp and hasattr(resp, 'json'):
+        try:
+            rjson = resp.json()
+            if isinstance(rjson, dict):
+                err = rjson.get('error', {})
+                if isinstance(err, dict) and 'failed_generation' in err:
+                    return err['failed_generation']
+        except Exception:
+            pass
+
+    # Method 3: Regex match on str(e)
+    err_str = str(e)
+    if "'failed_generation':" in err_str or '"failed_generation":' in err_str:
+        match = re.search(r"['\"]failed_generation['\"]\s*:\s*(['\"])(.*?)(?:\1\s*,\s*['\"]|\1\s*\})", err_str, re.DOTALL)
+        if match:
+            raw = match.group(2)
+            try:
+                return raw.encode('utf-8').decode('unicode_escape')
+            except Exception:
+                return raw
+    return None
+
 
 class LLMClient:
     def __init__(self):
@@ -83,7 +152,7 @@ class LLMClient:
         response_schema: Type[T],
         system_prompt: str = "You are a JSON-only response engine. Return strictly valid JSON.",
         max_retries: int = 4,
-        max_tokens: int = 2500
+        max_tokens: int = 6000
     ) -> Tuple[T, int, float]:
         """
         Sends prompt to Groq API with JSON mode enabled.
@@ -145,12 +214,41 @@ class LLMClient:
                 logger.warning(f"Groq attempt {attempts} (Model: {model_name}, Key #{key_idx + 1}) failed: {err_str}")
                 last_error = e
 
+                # Check if Groq returned failed_generation due to json_validate_failed (token truncation)
+                failed_gen = extract_failed_generation_from_error(e)
+                if failed_gen:
+                    salvaged = attempt_repair_truncated_json(failed_gen)
+                    if salvaged:
+                        try:
+                            validated_obj = response_schema.model_validate(salvaged)
+                            logger.info(f"Successfully salvaged and validated partial JSON from Groq failed_generation on attempt {attempts}")
+                            return validated_obj, total_tokens or 3000, total_cost or 0.0025
+                        except Exception as val_err:
+                            logger.warning(f"Salvaged JSON did not pass schema validation: {val_err}")
+
+                # If token limit was hit or JSON failed validation, bump max_tokens for next attempt
+                if "json_validate_failed" in err_str or "length" in err_str.lower() or "token" in err_str.lower():
+                    max_tokens = min(8192, int(max_tokens * 1.3))
+
                 # Immediately rotate model on 404 (model not found) or rate limits
                 if "404" in err_str or "model_not_found" in err_str or "429" in err_str or "413" in err_str or "limit" in err_str.lower():
                     self._rotate_key_or_model()
                     await asyncio.sleep(1.0)
                 else:
                     await asyncio.sleep(1.0)
+
+        # Final salvage fallback check before raising RuntimeError
+        if last_error:
+            failed_gen = extract_failed_generation_from_error(last_error)
+            if failed_gen:
+                salvaged = attempt_repair_truncated_json(failed_gen)
+                if salvaged:
+                    try:
+                        validated_obj = response_schema.model_validate(salvaged)
+                        logger.info("Successfully salvaged JSON from Groq failed_generation as final fallback before error.")
+                        return validated_obj, total_tokens or 3000, total_cost or 0.0025
+                    except Exception as final_val_err:
+                        logger.warning(f"Final salvage attempt did not validate: {final_val_err}")
 
         raise RuntimeError(f"Failed to generate valid JSON from Groq after {attempts} attempts. Last error: {last_error}")
 
