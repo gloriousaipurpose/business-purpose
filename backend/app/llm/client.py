@@ -2,6 +2,7 @@ import logging
 import json
 import asyncio
 import re
+import httpx
 from typing import Type, TypeVar, Optional, Tuple, List, Dict, Any
 from pydantic import BaseModel
 from app.config import settings
@@ -250,7 +251,99 @@ class LLMClient:
                     except Exception as final_val_err:
                         logger.warning(f"Final salvage attempt did not validate: {final_val_err}")
 
-        raise RuntimeError(f"Failed to generate valid JSON from Groq after {attempts} attempts. Last error: {last_error}")
+        # ── GEMINI BACKUP ENGINE ──
+        # If all Groq attempts are exhausted, seamlessly failover to Google Gemini!
+        gemini_key = getattr(settings, "GEMINI_API_KEY", "") or ""
+        if gemini_key.strip():
+            logger.info("All Groq attempts failed. Invoking Google Gemini backup engine...")
+            try:
+                gemini_res, g_tokens, g_cost = await self._call_gemini_fallback(
+                    prompt=prompt,
+                    response_schema=response_schema,
+                    system_prompt=system_prompt,
+                    max_tokens=max_tokens
+                )
+                return gemini_res, g_tokens, g_cost
+            except Exception as gemini_err:
+                logger.error(f"Gemini backup engine also failed: {gemini_err}")
+                last_error = gemini_err
+
+        raise RuntimeError(f"Failed to generate valid JSON from Groq & Gemini after {attempts} attempts. Last error: {last_error}")
+
+    async def _call_gemini_fallback(
+        self,
+        prompt: str,
+        response_schema: Type[T],
+        system_prompt: str,
+        max_tokens: int = 6000
+    ) -> Tuple[T, int, float]:
+        """
+        Executes Google Gemini REST API call as backup with JSON Mode enabled.
+        """
+        api_key = getattr(settings, "GEMINI_API_KEY", "")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not configured.")
+
+        # Candidate Gemini models in preference order
+        configured_model = getattr(settings, "GEMINI_MODEL", "") or "gemini-flash-latest"
+        model_candidates = [
+            configured_model,
+            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-pro-latest"
+        ]
+        models_to_try = list(dict.fromkeys([m for m in model_candidates if m]))
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [{"text": f"SYSTEM INSTRUCTION:\n{system_prompt}\n\nUSER REQUEST:\n{prompt}"}]
+                }
+            ],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.2,
+                "maxOutputTokens": min(8192, max_tokens)
+            }
+        }
+
+        last_gemini_err = None
+
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            for model_name in models_to_try:
+                clean_model = model_name.replace("models/", "")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
+                try:
+                    resp = await http_client.post(url, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if not candidates:
+                            raise ValueError(f"Gemini returned no candidates: {data}")
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        raw_text = parts[0].get("text", "") if parts else "{}"
+
+                        # Parse JSON
+                        try:
+                            parsed = json.loads(raw_text)
+                        except Exception:
+                            # Attempt repair if truncated
+                            parsed = attempt_repair_truncated_json(raw_text)
+                            if not parsed:
+                                raise
+
+                        validated = response_schema.model_validate(parsed)
+                        logger.info(f"Gemini backup succeeded using model: {clean_model}")
+                        return validated, 2500, 0.0 # Free tier!
+                    else:
+                        err_content = resp.text
+                        logger.warning(f"Gemini candidate model {clean_model} returned HTTP {resp.status_code}: {err_content[:200]}")
+                        last_gemini_err = RuntimeError(f"Gemini HTTP {resp.status_code}: {err_content[:200]}")
+                except Exception as ex:
+                    logger.warning(f"Gemini model {clean_model} attempt failed: {ex}")
+                    last_gemini_err = ex
+
+        raise RuntimeError(f"All Gemini backup attempts failed. Last error: {last_gemini_err}")
 
 
 llm_client = LLMClient()
